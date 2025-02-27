@@ -37,7 +37,8 @@ void getAMDFeatures()
 	unsigned long eax, ebx, ecx, edx;
 
 	// CPUID 지원 여부 확인
-	if( !cpu_id_supported() ) {
+	if( !cpu_id_supported() ) 
+	{
 		std::cout << "CPUID is not supported on this CPU." << std::endl;
 		return;
 	}
