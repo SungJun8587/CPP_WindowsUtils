@@ -1,0 +1,94 @@
+<html>
+<body>
+<pre>
+<h1>Build Log</h1>
+<h3>
+--------------------Configuration: SystemInfoTool - Win32 Release--------------------
+</h3>
+<h3>Command Lines</h3>
+Creating temporary file "C:\DOCUME~1\ISLOVE~1\LOCALS~1\Temp\RSPD2.tmp" with contents
+[
+/nologo /ML /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /FR"Release/" /Fp"Release/SystemInfoTool.pch" /Yu"stdafx.h" /Fo"Release/" /Fd"Release/" /FD /c 
+"D:\PROJECT\VC++\Common\Source\BaseFile.cpp"
+"D:\PROJECT\VC++\Common\Source\CpuInfo.cpp"
+"D:\PROJECT\VC++\Common\Source\EventLog.cpp"
+"D:\PROJECT\VC++\Common\Source\HardwareInfo.cpp"
+"D:\PROJECT\VC++\Common\Source\MemBuffer.cpp"
+"D:\PROJECT\VC++\Common\Source\OsInfo.cpp"
+"D:\PROJECT\VC++\Common\Source\Regular.cpp"
+"D:\PROJECT\VC++\Common\Source\RWLock.cpp"
+"D:\PROJECT\VC++\Common\Source\SoftwareInfo.cpp"
+"D:\PROJECT\VC++\Common\Source\StringUtil.cpp"
+"D:\PROJECT\VC++\Common\Source\Wmi.cpp"
+"D:\PROJECT\VC++\Test\System\SystemInfoTool\SystemInfoTool.cpp"
+]
+Creating command line "cl.exe @C:\DOCUME~1\ISLOVE~1\LOCALS~1\Temp\RSPD2.tmp" 
+Creating temporary file "C:\DOCUME~1\ISLOVE~1\LOCALS~1\Temp\RSPD3.tmp" with contents
+[
+/nologo /ML /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /FR"Release/" /Fp"Release/SystemInfoTool.pch" /Yc"stdafx.h" /Fo"Release/" /Fd"Release/" /FD /c 
+"D:\PROJECT\VC++\Test\System\SystemInfoTool\StdAfx.cpp"
+]
+Creating command line "cl.exe @C:\DOCUME~1\ISLOVE~1\LOCALS~1\Temp\RSPD3.tmp" 
+Creating temporary file "C:\DOCUME~1\ISLOVE~1\LOCALS~1\Temp\RSPD4.tmp" with contents
+[
+kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib Winmm.lib version.lib Setupapi.lib /nologo /subsystem:console /incremental:no /pdb:"Release/SystemInfoTool.pdb" /machine:I386 /out:"Release/SystemInfoTool.exe" /OPT:NOREF 
+".\Release\BaseFile.obj"
+".\Release\CpuInfo.obj"
+".\Release\EventLog.obj"
+".\Release\HardwareInfo.obj"
+".\Release\MemBuffer.obj"
+".\Release\OsInfo.obj"
+".\Release\Regular.obj"
+".\Release\RWLock.obj"
+".\Release\SoftwareInfo.obj"
+".\Release\StringUtil.obj"
+".\Release\Wmi.obj"
+".\Release\StdAfx.obj"
+".\Release\SystemInfoTool.obj"
+]
+Creating command line "link.exe @C:\DOCUME~1\ISLOVE~1\LOCALS~1\Temp\RSPD4.tmp"
+<h3>Output Window</h3>
+Compiling...
+StdAfx.cpp
+Compiling...
+BaseFile.cpp
+CpuInfo.cpp
+EventLog.cpp
+HardwareInfo.cpp
+MemBuffer.cpp
+OsInfo.cpp
+Regular.cpp
+RWLock.cpp
+SoftwareInfo.cpp
+StringUtil.cpp
+Wmi.cpp
+SystemInfoTool.cpp
+Generating Code...
+Linking...
+Creating temporary file "C:\DOCUME~1\ISLOVE~1\LOCALS~1\Temp\RSPD6.tmp" with contents
+[
+/nologo /o"Release/SystemInfoTool.bsc" 
+".\Release\StdAfx.sbr"
+".\Release\BaseFile.sbr"
+".\Release\CpuInfo.sbr"
+".\Release\EventLog.sbr"
+".\Release\HardwareInfo.sbr"
+".\Release\MemBuffer.sbr"
+".\Release\OsInfo.sbr"
+".\Release\Regular.sbr"
+".\Release\RWLock.sbr"
+".\Release\SoftwareInfo.sbr"
+".\Release\StringUtil.sbr"
+".\Release\Wmi.sbr"
+".\Release\SystemInfoTool.sbr"]
+Creating command line "bscmake.exe @C:\DOCUME~1\ISLOVE~1\LOCALS~1\Temp\RSPD6.tmp"
+Creating browse info file...
+<h3>Output Window</h3>
+
+
+
+<h3>Results</h3>
+SystemInfoTool.exe - 0 error(s), 0 warning(s)
+</pre>
+</body>
+</html>

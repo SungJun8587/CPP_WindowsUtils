@@ -1,0 +1,108 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="UtilCore">
+      <UniqueIdentifier>{b26958ab-ac35-486a-84c9-0d6305bdb6d6}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;rc;def;r;odl;idl;hpj;bat</Extensions>
+    </Filter>
+    <Filter Include="UtilCore\Memory">
+      <UniqueIdentifier>{7e35c3a9-1faf-4ef2-b2d2-91531fbbf29c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="UtilCore\Util">
+      <UniqueIdentifier>{29d45cae-24be-4ab3-8deb-b875b20ad457}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SystemCore">
+      <UniqueIdentifier>{d3687a93-93dc-429c-9732-e3121344c5d1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DataStructures">
+      <UniqueIdentifier>{e42e3af5-bc81-43e1-b3cf-b8d231882b17}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="SystemInfoTool.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\Memory\MemBuffer.cpp">
+      <Filter>UtilCore\Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Util\BaseFile.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Util\EventLog.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Util\StringUtil.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Util\Regular.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\SystemCore\CpuInfo.cpp">
+      <Filter>SystemCore</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\SystemCore\HardwareInfo.cpp">
+      <Filter>SystemCore</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\SystemCore\OsInfo.cpp">
+      <Filter>SystemCore</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\SystemCore\SoftwareInfo.cpp">
+      <Filter>SystemCore</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\SystemCore\Wmi.cpp">
+      <Filter>SystemCore</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Util\ConvertCharset.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Memory\MemBuffer.h">
+      <Filter>UtilCore\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Util\BaseFile.h">
+      <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Util\EventLog.h">
+      <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Util\StringUtil.h">
+      <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Util\Regular.h">
+      <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\SystemCore\CpuInfo.h">
+      <Filter>SystemCore</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\SystemCore\CpuInfo64.h">
+      <Filter>SystemCore</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\SystemCore\HardwareInfo.h">
+      <Filter>SystemCore</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\SystemCore\OsInfo.h">
+      <Filter>SystemCore</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\SystemCore\SoftwareInfo.h">
+      <Filter>SystemCore</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\SystemCore\SystemBaseDefine.h">
+      <Filter>SystemCore</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\SystemCore\Wmi.h">
+      <Filter>SystemCore</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\DataStructures\BaseLinkedList.h">
+      <Filter>DataStructures</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Util\ConvertCharset.h">
+      <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="..\..\Library\SystemCore\CpuInfo64.asm">
+      <Filter>SystemCore</Filter>
+    </MASM>
+  </ItemGroup>
+</Project>
