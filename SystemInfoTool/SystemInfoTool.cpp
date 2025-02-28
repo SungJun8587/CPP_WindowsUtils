@@ -27,57 +27,8 @@ using namespace std;
 void Print(const TCHAR *ptszBuffer)
 {
 #ifdef _DEBUG
-	setlocale(LC_ALL, "korean");
 	_tprintf(_T("%s\n"), ptszBuffer);
 #endif
-}
-
-void getAMDFeatures() 
-{
-	unsigned long eax, ebx, ecx, edx;
-
-	// CPUID 지원 여부 확인
-	if( !cpu_id_supported() ) 
-	{
-		std::cout << "CPUID is not supported on this CPU." << std::endl;
-		return;
-	}
-
-	// AMD 확장 기능 가져오기
-	eax = AMD_EXTENDED_FEATURE;
-	cpu_id(&eax, &ebx, &ecx, &edx);
-	std::cout << "AMD Extended Features:" << std::endl;
-	std::cout << "EAX: " << std::hex << eax << std::endl;
-	std::cout << "EBX: " << std::hex << ebx << std::endl;
-	std::cout << "ECX: " << std::hex << ecx << std::endl;
-	std::cout << "EDX: " << std::hex << edx << std::endl;
-
-	// 이름 문자열 가져오기
-	eax = NAMESTRING_FEATURE;
-	cpu_id(&eax, &ebx, &ecx, &edx);
-	std::cout << "\nName String Features:" << std::endl;
-	std::cout << "EAX: " << std::hex << eax << std::endl;
-	std::cout << "EBX: " << std::hex << ebx << std::endl;
-	std::cout << "ECX: " << std::hex << ecx << std::endl;
-	std::cout << "EDX: " << std::hex << edx << std::endl;
-
-	// L1 캐시 정보 가져오기
-	eax = AMD_L1CACHE_FEATURE;
-	cpu_id(&eax, &ebx, &ecx, &edx);
-	std::cout << "\nL1 Cache Features:" << std::endl;
-	std::cout << "EAX: " << std::hex << eax << std::endl;
-	std::cout << "EBX: " << std::hex << ebx << std::endl;
-	std::cout << "ECX: " << std::hex << ecx << std::endl;
-	std::cout << "EDX: " << std::hex << edx << std::endl;
-
-	// L2 캐시 정보 가져오기
-	eax = AMD_L2CACHE_FEATURE;
-	cpu_id(&eax, &ebx, &ecx, &edx);
-	std::cout << "\nL2 Cache Features:" << std::endl;
-	std::cout << "EAX: " << std::hex << eax << std::endl;
-	std::cout << "EBX: " << std::hex << ebx << std::endl;
-	std::cout << "ECX: " << std::hex << ecx << std::endl;
-	std::cout << "EDX: " << std::hex << edx << std::endl;
 }
 
 //***************************************************************************
@@ -88,15 +39,7 @@ int main(int argc, char* argv[])
 	_CrtSetDbgFlag(_CrtSetDbgFlag(_CRTDBG_REPORT_FLAG) | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	//getAMDFeatures();
-
-	char szSource[20] = "안녕123하세요";
-	wchar_t wszSource[20] = L"안녕123하세요";
-
-	int nLength = MultiByteToWideChar(CP_ACP, 0, (LPSTR)szSource, -1, NULL, 0);
-	nLength = WideCharToMultiByte(CP_ACP, 0, wszSource, -1, NULL, 0, NULL, NULL);
-	nLength = static_cast<int>(strlen(szSource));
-	nLength = static_cast<int>(wcslen(wszSource));
+	setlocale(LC_ALL, "korean");
 
 	bool	fPause = true;
 	int		i = 0;
@@ -170,6 +113,7 @@ int main(int argc, char* argv[])
 		EOAC_NONE,                   // Additional capabilities 
 		NULL                         // Reserved
 	);
+
 	if( FAILED(hr) )
 	{
 		CoUninitialize();
@@ -179,15 +123,15 @@ int main(int argc, char* argv[])
 
 	Wmi.Connect();
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("********************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* BIOS INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* BIOS INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("********************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -195,32 +139,32 @@ int main(int argc, char* argv[])
 
 	BiosInfo.GetInformation(Wmi);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("BIOS Manufacturer = %s"), BiosInfo.GetManufacturer());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS Manufacturer = %s"), BiosInfo.GetManufacturer());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("BIOS SmVersion = %s"), BiosInfo.GetSmVersion());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS SmVersion = %s"), BiosInfo.GetSmVersion());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("BIOS Version = %s"), BiosInfo.GetVersion());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS Version = %s"), BiosInfo.GetVersion());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("BIOS IdentificationCode = %s"), BiosInfo.GetIdentificationCode());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS IdentificationCode = %s"), BiosInfo.GetIdentificationCode());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("BIOS SerialNumber = %s"), BiosInfo.GetSerialNumber());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS SerialNumber = %s"), BiosInfo.GetSerialNumber());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("BIOS ReleaseDate = %s"), BiosInfo.GetReleaseDate());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS ReleaseDate = %s"), BiosInfo.GetReleaseDate());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -235,15 +179,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* PROCESSOR INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* PROCESSOR INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -259,36 +203,36 @@ int main(int argc, char* argv[])
 
 	StrReplace(TCPUName, CpuInfo.GetProcessorName(), tszBuffer1, _T(""));
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("CPU Name = %s"), TCPUName.GetBuffer());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU Name = %s"), TCPUName.GetBuffer());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("CPU VendorName = %s"), CpuInfo.GetVendorName());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU VendorName = %s"), CpuInfo.GetVendorName());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("CPU Speed = %d MHz"), CpuInfo.GetSpeedMHz());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU Speed = %d MHz"), CpuInfo.GetSpeedMHz());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Number Of Processes = %d"), CpuInfo.GetNumberOfProcessors());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Number Of Processes = %d"), CpuInfo.GetNumberOfProcessors());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("CPU Family = %d"), CpuInfo.GetCPUFamily());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU Family = %d"), CpuInfo.GetCPUFamily());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("CPU Model = %d"), CpuInfo.GetCPUModel());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU Model = %d"), CpuInfo.GetCPUModel());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("CPU Stepping = %d"), CpuInfo.GetCPUStepping());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU Stepping = %d"), CpuInfo.GetCPUStepping());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -303,15 +247,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* MAINBOARD INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* MAINBOARD INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -319,24 +263,24 @@ int main(int argc, char* argv[])
 
 	MainBoardInfo.GetInformation(Wmi);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("MAINBOARD Product = %s"), MainBoardInfo.GetProduct());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MAINBOARD Product = %s"), MainBoardInfo.GetProduct());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("MAINBOARD SerialNumber = %s"), MainBoardInfo.GetSerialNumber());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MAINBOARD SerialNumber = %s"), MainBoardInfo.GetSerialNumber());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("MAINBOARD Manufacturer = %s"), MainBoardInfo.GetManufacturer());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MAINBOARD Manufacturer = %s"), MainBoardInfo.GetManufacturer());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("MAINBOARD Description = %s"), MainBoardInfo.GetDescription());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MAINBOARD Description = %s"), MainBoardInfo.GetDescription());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -351,15 +295,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("**********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* MEMORY INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* MEMORY INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("**********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -368,13 +312,13 @@ int main(int argc, char* argv[])
 	MemoryInfo.GetInformation(Wmi);
 	psRamArray = MemoryInfo.GetRamArray();
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("--------- RAM INFORMATION ---------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("--------- RAM INFORMATION ---------"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	for( i = 0; i < psRamArray->GetCount(); i++ )
 	{
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("RAM[%d]"), i + 1);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("RAM[%d]"), i + 1);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
@@ -382,31 +326,31 @@ int main(int argc, char* argv[])
 
 		ChangeDataFormat(pRam->m_nCapacity, tszFormat);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Memory BankLabel = %s"), pRam->m_tszBankLabel);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory BankLabel = %s"), pRam->m_tszBankLabel);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Memory Name = %s"), pRam->m_tszName);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory Name = %s"), pRam->m_tszName);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Memory DeviceLocator = %s"), pRam->m_tszDeviceLocator);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory DeviceLocator = %s"), pRam->m_tszDeviceLocator);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Memory Size = %s"), tszFormat);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory Size = %s"), tszFormat);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Memory FormFactor = %d[ %s ]"), pRam->m_dwFormFactor, pRam->m_tszFormFactorDesc);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory FormFactor = %d[ %s ]"), pRam->m_dwFormFactor, pRam->m_tszFormFactorDesc);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Memory MemoryType = %d[ %s ]"), pRam->m_dwMemoryType, pRam->m_tszMemoryTypeDesc);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory MemoryType = %d[ %s ]"), pRam->m_dwMemoryType, pRam->m_tszMemoryTypeDesc);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Memory Speed = %d"), pRam->m_dwSpeed);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory Speed = %d"), pRam->m_dwSpeed);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
@@ -415,51 +359,51 @@ int main(int argc, char* argv[])
 		Print(_T(""));
 	}
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("-------- MEMORY INFORMATION --------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("-------- MEMORY INFORMATION --------"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Total RAM Count = %d"), MemoryInfo.GetRamCount());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total RAM Count = %d"), MemoryInfo.GetRamCount());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	ChangeDataFormat(MemoryInfo.GetTotalMemSize(), tszFormat);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Total Memory Size = %s"), tszFormat);
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total Memory Size = %s"), tszFormat);
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	ChangeDataFormat(MemoryInfo.GetPhysicalMemSize(), tszFormat);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Physical Memory Size = %s"), tszFormat);
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Physical Memory Size = %s"), tszFormat);
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	ChangeDataFormat(MemoryInfo.GetUseMemSize(), tszFormat);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Used Memory Size = %s"), tszFormat);
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Used Memory Size = %s"), tszFormat);
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	ChangeDataFormat(MemoryInfo.GetTotalVirtualMemSize(), tszFormat);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Total Virtual Memory Size = %s"), tszFormat);
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total Virtual Memory Size = %s"), tszFormat);
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	ChangeDataFormat(MemoryInfo.GetFreeVirtualMemSize(), tszFormat);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Free Virtual Memory Size = %s"), tszFormat);
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Free Virtual Memory Size = %s"), tszFormat);
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	ChangeDataFormat(MemoryInfo.GetTotalPageFile(), tszFormat);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Total PageFile Size = %s"), tszFormat);
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total PageFile Size = %s"), tszFormat);
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	ChangeDataFormat(MemoryInfo.GetFreePageFile(), tszFormat);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Free PageFile Size = %s"), tszFormat);
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Free PageFile Size = %s"), tszFormat);
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -474,15 +418,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("**********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* DRIVES INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* DRIVES INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("**********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -493,30 +437,30 @@ int main(int argc, char* argv[])
 
 	for( i = 0; i < psHdDiskArray->GetCount(); i++ )
 	{
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("HDDISK[%d]"), i + 1);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("HDDISK[%d]"), i + 1);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
 		pHdDisk = psHdDiskArray->At(i);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Model = %s"), pHdDisk->m_tszModel);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Model = %s"), pHdDisk->m_tszModel);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Name = %s"), pHdDisk->m_tszName);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Name = %s"), pHdDisk->m_tszName);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Manufacturer = %s"), pHdDisk->m_tszManufacturer);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Manufacturer = %s"), pHdDisk->m_tszManufacturer);
 		EvLog.EventLog(tszBuffer, false);
  		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Description = %s"), pHdDisk->m_tszDescription);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Description = %s"), pHdDisk->m_tszDescription);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
 		ChangeDataFormat(pHdDisk->m_nTotalSize, tszFormat);
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk TotalSize = %s"), tszFormat);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk TotalSize = %s"), tszFormat);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
@@ -526,7 +470,7 @@ int main(int argc, char* argv[])
 	}
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -541,15 +485,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("****************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("****************************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* LOGICAL DISK INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* LOGICAL DISK INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("****************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("****************************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -560,32 +504,32 @@ int main(int argc, char* argv[])
 
 	for( i = 0; i < psDriveArray->GetCount(); i++ )
 	{
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("DRIVE[%d]"), i + 1);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DRIVE[%d]"), i + 1);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
 		pDrive = psDriveArray->At(i);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Drive Name = %s"), pDrive->m_tszName);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Drive Name = %s"), pDrive->m_tszName);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Drive FileSystem = %s"), pDrive->m_tszFileSystem);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Drive FileSystem = %s"), pDrive->m_tszFileSystem);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
 		ChangeDataFormat(pDrive->m_nTotalSpace, tszFormat);
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Drive TotalSpace = %s"), tszFormat);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Drive TotalSpace = %s"), tszFormat);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
 		ChangeDataFormat(pDrive->m_nFreeSpace, tszFormat);
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Drive FreeSpace = %s"), tszFormat);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Drive FreeSpace = %s"), tszFormat);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
 		ChangeDataFormat(pDrive->m_nTotalSpace - pDrive->m_nFreeSpace, tszFormat);
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Drive UsedSpace = %s"), tszFormat);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Drive UsedSpace = %s"), tszFormat);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
@@ -594,31 +538,31 @@ int main(int argc, char* argv[])
 		Print(_T(""));
 	}
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("-------- DRIVE INFORMATION --------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("-------- DRIVE INFORMATION --------"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Total Drive Count = %d"), DriveInfo.GetDriveCount());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total Drive Count = %d"), DriveInfo.GetDriveCount());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	ChangeDataFormat(DriveInfo.GetTotalSpaceSize(), tszFormat);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Total Space Size = %s"), tszFormat);
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total Space Size = %s"), tszFormat);
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	ChangeDataFormat(DriveInfo.GetFreeSpaceSize(), tszFormat);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Free Space Size = %s"), tszFormat);
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Free Space Size = %s"), tszFormat);
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	ChangeDataFormat(DriveInfo.GetUsedSpaceSize(), tszFormat);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Used Space Size = %s"), tszFormat);
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Used Space Size = %s"), tszFormat);
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -633,15 +577,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* SOUNDCARD INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* SOUNDCARD INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -649,24 +593,24 @@ int main(int argc, char* argv[])
 
 	SoundCardInfo.GetInformation();
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("HasVolumeControl = %d"), SoundCardInfo.HasVolCtrl());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("HasVolumeControl = %d"), SoundCardInfo.HasVolCtrl());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("HasSeparateRLVolCtrl = %d"), SoundCardInfo.HasSeparateLRVolCtrl());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("HasSeparateRLVolCtrl = %d"), SoundCardInfo.HasSeparateLRVolCtrl());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("ProductName = %s"), SoundCardInfo.GetProductName());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("ProductName = %s"), SoundCardInfo.GetProductName());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("CompanyName = %s"), SoundCardInfo.GetCompanyName());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CompanyName = %s"), SoundCardInfo.GetCompanyName());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -681,15 +625,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* VIDEO INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* VIDEO INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -700,33 +644,33 @@ int main(int argc, char* argv[])
 
 	for( i = 0; i < psVideoCardArray->GetCount(); i++ )
 	{
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("VIDEO[%d]"), i + 1);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("VIDEO[%d]"), i + 1);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
 		pVideoCard = psVideoCardArray->At(i);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Description = %s"), pVideoCard->m_tszDescription);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Description = %s"), pVideoCard->m_tszDescription);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("AdapterString = %s"), pVideoCard->m_tszAdapterString);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("AdapterString = %s"), pVideoCard->m_tszAdapterString);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("ChipType = %s"), pVideoCard->m_tszChipType);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("ChipType = %s"), pVideoCard->m_tszChipType);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("DacType = %s"), pVideoCard->m_tszDacType);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DacType = %s"), pVideoCard->m_tszDacType);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("DisplayDrivers = %s"), pVideoCard->m_tszDisplayDrivers);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DisplayDrivers = %s"), pVideoCard->m_tszDisplayDrivers);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("MemorySize = %d"), pVideoCard->m_lMemorySize);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MemorySize = %d"), pVideoCard->m_lMemorySize);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
@@ -736,7 +680,7 @@ int main(int argc, char* argv[])
 	}
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -751,15 +695,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("***************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***************************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* NETWORKCARD INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* NETWORKCARD INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("***************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***************************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -770,13 +714,13 @@ int main(int argc, char* argv[])
 
 	for( i = 0; i < psNetworkCardArray->GetCount(); i++ )
 	{
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("NETWORKCARD[%d]"), i + 1);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("NETWORKCARD[%d]"), i + 1);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
 		pNetworkCard = psNetworkCardArray->At(i);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] NetworkCard Description = %s"), pNetworkCard->m_tszDescription);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] NetworkCard Description = %s"), pNetworkCard->m_tszDescription);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
@@ -786,7 +730,7 @@ int main(int argc, char* argv[])
 	}
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -801,15 +745,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* CDROM INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* CDROM INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -820,21 +764,21 @@ int main(int argc, char* argv[])
 
 	for( i = 0; i < psCdromArray->GetCount(); i++ )
 	{
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("CDROM[%d]"), i + 1);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CDROM[%d]"), i + 1);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
 		pCdrom = psCdromArray->At(i);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Cdrom Name = %s"), pCdrom->m_tszName);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Cdrom Name = %s"), pCdrom->m_tszName);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Cdrom Manufacturer = %s"), pCdrom->m_tszManufacturer);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Cdrom Manufacturer = %s"), pCdrom->m_tszManufacturer);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Cdrom Description = %s"), pCdrom->m_tszDescription);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Cdrom Description = %s"), pCdrom->m_tszDescription);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
@@ -844,7 +788,7 @@ int main(int argc, char* argv[])
 	}
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -859,15 +803,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("************************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* KEYBOARD INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* KEYBOARD INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("************************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -875,16 +819,16 @@ int main(int argc, char* argv[])
 
 	KeyBoardInfo.GetInformation(Wmi);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("KeyBoard Description = %s"), KeyBoardInfo.GetDescription());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("KeyBoard Description = %s"), KeyBoardInfo.GetDescription());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("KeyBoard Type = %s"), KeyBoardInfo.GetType());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("KeyBoard Type = %s"), KeyBoardInfo.GetType());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -899,15 +843,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* MOUSE INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* MOUSE INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("*********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -915,20 +859,20 @@ int main(int argc, char* argv[])
 
 	MouseInfo.GetInformation(Wmi);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Mouse Name = %s"), MouseInfo.GetName());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Mouse Name = %s"), MouseInfo.GetName());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Mouse Manufacturer = %s"), MouseInfo.GetManufacturer());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Mouse Manufacturer = %s"), MouseInfo.GetManufacturer());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Mouse Description = %s"), MouseInfo.GetDescription());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Mouse Description = %s"), MouseInfo.GetDescription());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -943,15 +887,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("***********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***********************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* MONITOR INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* MONITOR INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("***********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***********************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -962,17 +906,17 @@ int main(int argc, char* argv[])
 
 	for( i = 0; i < psMonitorArray->GetCount(); i++ )
 	{
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("MONITOR[%d]"), i + 1);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MONITOR[%d]"), i + 1);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
 		pMonitor = psMonitorArray->At(i);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Monitor Manufacturer = %s"), pMonitor->m_tszManufacturer);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Monitor Manufacturer = %s"), pMonitor->m_tszManufacturer);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[#] Monitor Description = %s"), pMonitor->m_tszDescription);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Monitor Description = %s"), pMonitor->m_tszDescription);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 
@@ -982,7 +926,7 @@ int main(int argc, char* argv[])
 	}
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -997,51 +941,51 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("******************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("******************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* OS INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* OS INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("******************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("******************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
 	Print(_T(""));
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Description = %s"), OsInfo.GetDescription());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Description = %s"), OsInfo.GetDescription());
 
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	if( OsInfo.Is32bitPlatform() )
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Bit Platform = 32Bit Platform"));
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Bit Platform = 32Bit Platform"));
 	else if( OsInfo.Is64bitPlatform() )
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Bit Platform = 64Bit Platform"));
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Bit Platform = 64Bit Platform"));
 
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("BuildNumber = %d"), OsInfo.GetBuildNumber());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BuildNumber = %d"), OsInfo.GetBuildNumber());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("MajorVersion = %d"), OsInfo.GetMajorVersion());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MajorVersion = %d"), OsInfo.GetMajorVersion());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("MinorVersion = %d"), OsInfo.GetMinorVersion());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MinorVersion = %d"), OsInfo.GetMinorVersion());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("ServicePack = %s"), OsInfo.GetServicePack());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("ServicePack = %s"), OsInfo.GetServicePack());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -1056,15 +1000,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("******************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("******************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* IE INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* IE INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("******************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("******************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -1072,16 +1016,16 @@ int main(int argc, char* argv[])
 
 	IeInfo.GetInformation();
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("IE Build = %s"), IeInfo.GetBuild());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("IE Build = %s"), IeInfo.GetBuild());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("IE Version = %s"), IeInfo.GetVersion());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("IE Version = %s"), IeInfo.GetVersion());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -1096,15 +1040,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("***********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***********************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* DIRECTX INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* DIRECTX INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("***********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***********************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -1112,20 +1056,20 @@ int main(int argc, char* argv[])
 
 	DirectXInfo.GetInformation();
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("DirectX Version = %s"), DirectXInfo.GetVersion());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DirectX Version = %s"), DirectXInfo.GetVersion());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("DirectX Install Version = %s"), DirectXInfo.GetInstallVersion());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DirectX Install Version = %s"), DirectXInfo.GetInstallVersion());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("DirectX Description = %s"), DirectXInfo.GetDescription());
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DirectX Description = %s"), DirectXInfo.GetDescription());
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -1140,15 +1084,15 @@ int main(int argc, char* argv[])
 	}
 #endif
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("**********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* JAVAVM INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* JAVAVM INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("**********************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -1157,34 +1101,34 @@ int main(int argc, char* argv[])
 	JavaVMInfo.GetInformation();
 
 	if( JavaVMInfo.IsJVM() == 0 )
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Not Run Java Virtual Machine"));
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Not Run Java Virtual Machine"));
 	else if( JavaVMInfo.IsJVM() == 1 )
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Run MS Java Virtual Machine"));
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Run MS Java Virtual Machine"));
 	else if( JavaVMInfo.IsJVM() == 2 )
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Run SUN Java Virtual Machine"));
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Run SUN Java Virtual Machine"));
 	else if( JavaVMInfo.IsJVM() == 3 )
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("Run MS, SUN Java Virtual Machine"));
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Run MS, SUN Java Virtual Machine"));
 
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
 	Print(tszBuffer);
 	Print(_T(""));
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("********************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("********************************"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("* INSTALL SOFTWARE INFORMATION *"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* INSTALL SOFTWARE INFORMATION *"));
 	EvLog.EventLog(tszBuffer, false);
 	Print(tszBuffer);
 
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("********************************"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("********************************"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(tszBuffer);
@@ -1197,13 +1141,13 @@ int main(int argc, char* argv[])
 	{
 		pInstallSwInfo = psInstallSwInfoArray->At(i);
 
-		StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("[%d]. %s"), i + 1, pInstallSwInfo->m_tszDisplayName);
+		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[%d]. %s"), i + 1, pInstallSwInfo->m_tszDisplayName);
 		EvLog.EventLog(tszBuffer, false);
 		Print(tszBuffer);
 	}
 
 	EvLog.EventLog(_T(""), false);
-	StringCchPrintf(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
+	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
 	EvLog.EventLog(tszBuffer, false);
 	EvLog.EventLog(_T(""), false);
 	Print(_T(""));
@@ -1223,100 +1167,3 @@ int main(int argc, char* argv[])
 
 	return 0;
 }
-
-/*
-int main(int argc, char* argv[])
-{
-	cout << "Program Running" << endl;
-
-	DWORD iDevNum = 0;
-	DISPLAY_DEVICE lpDisplayDevice;
-	DWORD dwFlags = 0;
-
-	lpDisplayDevice.cb = sizeof(lpDisplayDevice);
-
-	while( EnumDisplayDevices( NULL, iDevNum, &lpDisplayDevice, dwFlags ) )
-	{
-		iDevNum++;
-
-		if( lpDisplayDevice.StateFlags & DISPLAY_DEVICE_ACTIVE
-			&& !(lpDisplayDevice.StateFlags & DISPLAY_DEVICE_VGA_COMPATIBLE ) )
-		{
-			cout << " Display Device : " << iDevNum << endl;
-			cout << " Device ID : " << lpDisplayDevice.DeviceID << endl;
-			cout << " Device Key : " << lpDisplayDevice.DeviceKey << endl;
-			cout << " Device Name : " << lpDisplayDevice.DeviceName << endl;
-			cout << " Device Descreption : " << lpDisplayDevice.DeviceString << endl;
-			cout << " Device Status : " << lpDisplayDevice.StateFlags << endl << endl;
-		}
-	}
-
-	if( cpu_id_supported() )
-	{
-		cout << "CPUID = yes" << endl;
-		cout << "AVX = " << (cpu_avx() ? "yes" : "no") << endl;
-		cout << "AVX2 = " << (cpu_avx2() ? "yes" : "no") << endl;
-		cout << "MMX = " << (cpu_mmx() ? "yes" : "no") << endl;
-		cout << "SSE = " << (cpu_sse() ? "yes" : "no") << endl;
-		cout << "SSE2 = " << (cpu_sse2() ? "yes" : "no") << endl;
-		cout << "SSE3 = " << (cpu_sse3() ? "yes" : "no") << endl;
-		cout << "SSSE3 = " << (cpu_ssse3() ? "yes" : "no") << endl;
-		cout << "SSE41 = " << (cpu_sse41() ? "yes" : "no") << endl;
-		cout << "SSE42 = " << (cpu_sse42() ? "yes" : "no") << endl;
-		cout << "HT = " << (cpu_hyperthreading() ? "yes" : "no") << endl;
-		cout << "ThreadCount = " << cpu_logical_processor_count() << endl;
-
-		// retrieve the processor brand
-		char brand[48 + 1];
-		brand[48] = 0;
-		if( cpu_brand(brand) )
-		{
-			cout << "Brand = " << brand << endl;
-		}
-		cout << endl << "Ctrl+C to quit" << endl;
-	}
-	else
-	{
-		cout << "CPUID = no" << endl;
-	}
-	cin.get();
-	return 0;
-
-	if( cpu_id_supported() )
-	{
-		cout << "CPUID = yes" << endl;
-		cout << "AVX = " << (cpu_avx() ? "yes" : "no") << endl;
-		cout << "AVX2 = " << (cpu_avx2() ? "yes" : "no") << endl;
-		cout << "MMX = " << (cpu_mmx() ? "yes" : "no") << endl;
-		cout << "SSE = " << (cpu_sse() ? "yes" : "no") << endl;
-		cout << "SSE2 = " << (cpu_sse2() ? "yes" : "no") << endl;
-		cout << "SSE3 = " << (cpu_sse3() ? "yes" : "no") << endl;
-		cout << "SSSE3 = " << (cpu_ssse3() ? "yes" : "no") << endl;
-		cout << "SSE41 = " << (cpu_sse41() ? "yes" : "no") << endl;
-		cout << "SSE42 = " << (cpu_sse42() ? "yes" : "no") << endl;
-		cout << "HT = " << (cpu_hyperthreading() ? "yes" : "no") << endl;
-		cout << "ThreadCount = " << cpu_logical_processor_count() << endl;
-
-		// retrieve the processor brand
-		union {
-			char brand[48 + 1];
-			long long buffer[6];
-		};
-		brand[48] = 0;
-		buffer[0] = cpu_brand_part0();
-		buffer[1] = cpu_brand_part1();
-		buffer[2] = cpu_brand_part2();
-		buffer[3] = cpu_brand_part3();
-		buffer[4] = cpu_brand_part4();
-		buffer[5] = cpu_brand_part5();
-		cout << "Brand = " << brand << endl;
-		cout << endl << "Ctrl+C to quit" << endl;
-	}
-	else
-	{
-		cout << "CPUID = no" << endl;
-	}
-	cin.get();
-	return 0;
-}
-*/
