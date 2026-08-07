@@ -20,17 +20,22 @@
 #include <BaseDefine.h>
 #include <BaseReDefineDataType.h>
 #include <BaseMacro.h>
+#include <BaseTLS.h>
 
-#pragma comment(lib, LIB_NAME("libiconv"))
+#include <Memory/RawAllocator.h>
+#include <Memory/Allocator.h>
+#include <Memory/MemoryPool.h>
+#include <Memory/Memory.h>
+#include <Memory/ObjectPool.h>
+#include <Memory/Containers.h>
 
-#include <iconv.h>
-
-#include <Memory/MemBuffer.h>
-#include <Util/IconvUtil.h>
-#include <Util/ConvertCharset.h>
+#include <Util/WinCharsetConv.h>
+#include <Util/EncodingConvert.h>
+#include <Util/CommonUtil.h>
 #include <Util/StringUtil.h>
-#include <Util/FileUtil.h>
 #include <Util/ShellUtil.h>
+
+#include <Thread/ThreadManager.h>
 
 #define  _DEBUGLOG				  // Enable Logging For Monitoring System
 

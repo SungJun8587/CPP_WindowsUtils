@@ -9,8 +9,9 @@
 ::      - 1. 이동/복사 : M/C
 ::      - 2. 원본 폴더 : E:\GitHub\CPP\Library\DataStructures
 ::      - 3. 대상 폴더 : E:\Backup\CPP\Library\DataStructures
-::      - 4. 적용,제외 여부 : 1/0
-::      - 5. 확장자 : 해당 확장자만 적용(Ex. ".asp;.htm;.html")
+::      - 4. 적용,제외 여부 : 0/1/2(전체 허용/지정한 확장자만 허용/지정한 확장자는 제외)
+::      - 5. 확장자 : 해당 확장자만 적용(Ex. "asp;htm;html")
 ::      - 6. 시작 일시 : 수정 일시을 기준으로 시작 일시
 ::      - 7. 종료 일시 : 수정 일시을 기준으로 종료 일시
-x64\Release\ShCopyMove.exe C "E:\GitHub\CPP\Library\DataStructures" "E:\Backup\CPP\Library\DataStructures" 1 ".cpp;.h" "2017-08-15 00:00:00" "2017-08-15 23:59:59"
+::      - 8. 소비자 스레드 수 : 파일 복사/이동을 병렬로 처리할 소비자(Consumer) 스레드 개수(값을 지정하지 않거나 0을 입력하면 시스템 프로세서 코어 개수(SYSTEM::CoreCount())로 자동 설정)	
+x64\Release\ShCopyMove.exe C "E:\GitHub\CPP\Library\DataStructures" "E:\Backup\CPP\Library\DataStructures" 1 "cpp;h" "2017-08-15 00:00:00" "2017-08-15 23:59:59" 0
