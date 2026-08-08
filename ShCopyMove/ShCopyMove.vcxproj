@@ -116,6 +116,7 @@
     <ClInclude Include="..\..\Library\UtilCore\BaseMacro.h" />
     <ClInclude Include="..\..\Library\UtilCore\BaseRedefineDataType.h" />
     <ClInclude Include="..\..\Library\UtilCore\BaseTLS.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Containers\Queue\ChunkedBlockingQueue.h" />
     <ClInclude Include="..\..\Library\UtilCore\Memory\Allocator.h" />
     <ClInclude Include="..\..\Library\UtilCore\Memory\Containers.h" />
     <ClInclude Include="..\..\Library\UtilCore\Memory\Memory.h" />

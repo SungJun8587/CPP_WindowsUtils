@@ -16,6 +16,7 @@
 #include <malloc.h>
 #include <strsafe.h>
 #include <vector>
+#include <unordered_set>
 
 #include <BaseDefine.h>
 #include <BaseReDefineDataType.h>
@@ -36,6 +37,8 @@
 #include <Util/ShellUtil.h>
 
 #include <Thread/ThreadManager.h>
+
+#include <Containers/Queue/ChunkedBlockingQueue.h>
 
 #define  _DEBUGLOG				  // Enable Logging For Monitoring System
 

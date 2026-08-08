@@ -13,6 +13,12 @@
     <Filter Include="UtilCore\Thread">
       <UniqueIdentifier>{8140e92e-8778-4cbb-9e17-959c95d630c5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="UtilCore\Containers">
+      <UniqueIdentifier>{25997d27-420d-4d43-b7d6-7360966f77ca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="UtilCore\Containers\Queue">
+      <UniqueIdentifier>{a764a39a-a2e6-4402-892e-afbc041c42ec}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ShCopyMove.cpp" />
@@ -94,6 +100,9 @@
     </ClInclude>
     <ClInclude Include="..\..\Library\UtilCore\Util\StringUtil.h">
       <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Containers\Queue\ChunkedBlockingQueue.h">
+      <Filter>UtilCore\Containers\Queue</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
