@@ -1,0 +1,65 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="FileInfoScanner.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\Util\FileUtil.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Util\EncodingConvert.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Util\WinCharsetConv.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Excel\XlntUtil.cpp">
+      <Filter>UtilCore\Excel</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Util\DateTimeUtil.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Util\FileUtil.h">
+      <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Util\EncodingConvert.h">
+      <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Util\WinCharsetConv.h">
+      <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\BaseDefine.h">
+      <Filter>UtilCore</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\BaseMacro.h">
+      <Filter>UtilCore</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\BaseRedefineDataType.h">
+      <Filter>UtilCore</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Excel\XlntUtil.h">
+      <Filter>UtilCore\Excel</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Util\DateTimeUtil.h">
+      <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="UtilCore">
+      <UniqueIdentifier>{2e2ba952-e35d-41d7-8b73-e578ffe75e2d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="UtilCore\Util">
+      <UniqueIdentifier>{a103ab91-c968-48dc-8abe-dbae3fe5686d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="UtilCore\Excel">
+      <UniqueIdentifier>{27ee5fa8-5731-4683-9511-e6583fbb8432}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\Library\UtilCore\Excel\XlntUtil.inl">
+      <Filter>UtilCore\Excel</Filter>
+    </None>
+  </ItemGroup>
+</Project>
