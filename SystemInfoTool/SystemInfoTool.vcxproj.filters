@@ -51,8 +51,20 @@
     <ClCompile Include="..\..\Library\SystemCore\Wmi.cpp">
       <Filter>SystemCore</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Library\UtilCore\Util\ConvertCharset.cpp">
+    <ClCompile Include="..\..\Library\UtilCore\Util\EncodingConvert.cpp">
       <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Util\WinCharsetConv.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Memory\Allocator.cpp">
+      <Filter>UtilCore\Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Memory\Memory.cpp">
+      <Filter>UtilCore\Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Memory\MemoryPool.cpp">
+      <Filter>UtilCore\Memory</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -96,8 +108,29 @@
     <ClInclude Include="..\..\Library\DataStructures\BaseLinkedList.h">
       <Filter>DataStructures</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Library\UtilCore\Util\ConvertCharset.h">
+    <ClInclude Include="..\..\Library\UtilCore\Util\EncodingConvert.h">
       <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Util\WinCharsetConv.h">
+      <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Memory\Allocator.h">
+      <Filter>UtilCore\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Memory\Containers.h">
+      <Filter>UtilCore\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Memory\Memory.h">
+      <Filter>UtilCore\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Memory\MemoryPool.h">
+      <Filter>UtilCore\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Memory\ObjectPool.h">
+      <Filter>UtilCore\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Memory\RawAllocator.h">
+      <Filter>UtilCore\Memory</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -8,15 +8,16 @@
 #define PCH_H
 
 // 여기에 미리 컴파일하려는 헤더 추가
+#define WIN32_LEAN_AND_MEAN		// 자주 사용하지 않는 API의 일부를 제외하여 Win32 헤더 파일의 크기를 줄이기 위해 설정(빌드 시간 단축 목적)
+#define _HAS_STD_BYTE 0			// c++17 옵션을 활성화 시 std::byte 를 비활성 하는 옵션
+
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <tchar.h>
 #include <crtdbg.h>
-#include <malloc.h>
-#include <strsafe.h>
-#include <vector>
-#include <unordered_set>
+#include <string>
+#include <filesystem>
 
 #include <BaseDefine.h>
 #include <BaseReDefineDataType.h>
@@ -30,6 +31,7 @@
 #include <Memory/ObjectPool.h>
 #include <Memory/Containers.h>
 
+#include <Util/Log.h>
 #include <Util/WinCharsetConv.h>
 #include <Util/EncodingConvert.h>
 #include <Util/CommonUtil.h>

@@ -49,18 +49,18 @@
     <OutDir>$(SolutionDir)Bin\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>Bin\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)64D</TargetName>
-    <IncludePath>E:\GitHub\CPP\Library\UtilCore;E:\GitHub\CPP\Library\SystemCore;E:\GitHub\CPP\Library\DataStructures;$(ProjectDir);$(IncludePath)</IncludePath>
+    <IncludePath>K:\GitHub\CPP\Library\UtilCore;K:\GitHub\CPP\Library\SystemCore;K:\GitHub\CPP\Library\DataStructures;$(ProjectDir);$(IncludePath)</IncludePath>
     <ReferencePath>$(ReferencePath)</ReferencePath>
-    <LibraryPath>E:\GitHub\CPP\Library\ExternalLib\Bin\$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
+    <LibraryPath>K:\GitHub\CPP\Library\ExternalLib\Bin\$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)Bin\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>Bin\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)64</TargetName>
-    <IncludePath>E:\GitHub\CPP\Library\UtilCore;E:\GitHub\CPP\Library\SystemCore;E:\GitHub\CPP\Library\DataStructures;$(ProjectDir);$(IncludePath)</IncludePath>
+    <IncludePath>K:\GitHub\CPP\Library\UtilCore;K:\GitHub\CPP\Library\SystemCore;K:\GitHub\CPP\Library\DataStructures;$(ProjectDir);$(IncludePath)</IncludePath>
     <ReferencePath>$(ReferencePath)</ReferencePath>
-    <LibraryPath>E:\GitHub\CPP\Library\ExternalLib\Bin\$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
+    <LibraryPath>K:\GitHub\CPP\Library\ExternalLib\Bin\$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -110,12 +110,16 @@
     <ClCompile Include="..\..\Library\SystemCore\OsInfo.cpp" />
     <ClCompile Include="..\..\Library\SystemCore\SoftwareInfo.cpp" />
     <ClCompile Include="..\..\Library\SystemCore\Wmi.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\Memory\Allocator.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Memory\MemBuffer.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\Memory\Memory.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\Memory\MemoryPool.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\BaseFile.cpp" />
-    <ClCompile Include="..\..\Library\UtilCore\Util\ConvertCharset.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\Util\EncodingConvert.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\EventLog.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\Regular.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\StringUtil.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\Util\WinCharsetConv.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
@@ -131,12 +135,19 @@
     <ClInclude Include="..\..\Library\SystemCore\SoftwareInfo.h" />
     <ClInclude Include="..\..\Library\SystemCore\SystemBaseDefine.h" />
     <ClInclude Include="..\..\Library\SystemCore\Wmi.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Memory\Allocator.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Memory\Containers.h" />
     <ClInclude Include="..\..\Library\UtilCore\Memory\MemBuffer.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Memory\Memory.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Memory\MemoryPool.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Memory\ObjectPool.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Memory\RawAllocator.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\BaseFile.h" />
-    <ClInclude Include="..\..\Library\UtilCore\Util\ConvertCharset.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Util\EncodingConvert.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\EventLog.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\Regular.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\StringUtil.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Util\WinCharsetConv.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>

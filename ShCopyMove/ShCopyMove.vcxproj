@@ -101,7 +101,9 @@
     <ClCompile Include="..\..\Library\UtilCore\Memory\MemoryPool.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Thread\ThreadManager.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\CommonUtil.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\Util\DirectoryUtil.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\EncodingConvert.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\Util\Log.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\ShellUtil.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\StringUtil.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\WinCharsetConv.cpp" />
@@ -124,7 +126,9 @@
     <ClInclude Include="..\..\Library\UtilCore\Memory\RawAllocator.h" />
     <ClInclude Include="..\..\Library\UtilCore\Thread\ThreadManager.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\CommonUtil.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Util\DirectoryUtil.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\EncodingConvert.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Util\Log.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\ShellUtil.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\StringUtil.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\WinCharsetConv.h" />

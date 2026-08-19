@@ -180,21 +180,8 @@ bool DirectoryRecursiveSearch(const fs::path& dirPath, std::vector<FileInfo>& ou
         BY_HANDLE_FILE_INFORMATION fileInfo;
         if( GetFileInfoAndEncoding(entry.path().c_str(), &fileInfo, encoding) )
         {
-            FILETIME ftCreationLocal;
-            SYSTEMTIME stCreation;
-            FileTimeToLocalFileTime(&fileInfo.ftCreationTime, &ftCreationLocal);
-            FileTimeToSystemTime(&ftCreationLocal, &stCreation);
-            TCHAR tszCreation[100] = { 0 };
-            tszCreation << stCreation;
-            creationTime = tszCreation;
-
-            FILETIME ftWriteLocal;
-            SYSTEMTIME stWrite;
-            FileTimeToLocalFileTime(&fileInfo.ftLastWriteTime, &ftWriteLocal);
-            FileTimeToSystemTime(&ftWriteLocal, &stWrite);
-            TCHAR tszWrite[100] = { 0 };
-            tszWrite << stWrite;
-            modifiedTime = tszWrite;
+            creationTime = FileTimeToLocalString(fileInfo.ftCreationTime);
+            modifiedTime = FileTimeToLocalString(fileInfo.ftLastWriteTime);
         }
         else
         {
@@ -202,8 +189,27 @@ bool DirectoryRecursiveSearch(const fs::path& dirPath, std::vector<FileInfo>& ou
             modifiedTime = _T("N/A");
         }
 #else
+        // 6. Win32 전용 API(CreateFile/BY_HANDLE_FILE_INFORMATION)를 쓸 수 없는 환경.
+        //    생성일시는 표준 라이브러리로 이식성 있게 구할 방법이 없어 N/A 처리하고,
+        //    수정일시는 std::filesystem::last_write_time(), 인코딩은 std::ifstream 기반의
+        //    이식성 있는 GetFileEncodingType(const _tstring&) 오버로드로 판별한다.
         creationTime = _T("N/A");
-        modifiedTime = _T("N/A");
+        auto ftime = fs::last_write_time(entry.path(), fileEc);
+        if( !fileEc )
+        {
+            // file_clock -> system_clock 변환 (C++17 호환 방식; C++20이면 std::chrono::clock_cast로 대체 가능)
+            auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+                ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now());
+            std::time_t tt = std::chrono::system_clock::to_time_t(sctp);
+
+            modifiedTime = ptime::Format(tt, _T("%Y-%m-%d %H:%M:%S"));
+        }
+        else
+        {
+            modifiedTime = _T("N/A");
+        }
+    
+        encoding = GetFileEncodingType(_tstring(entry.path().c_str()));
 #endif
 
         _tstring encodingStr = GetEncodingString(encoding);
@@ -215,17 +221,56 @@ bool DirectoryRecursiveSearch(const fs::path& dirPath, std::vector<FileInfo>& ou
     return true;
 }
 
+//***************************************************************************
+// @brief 프로그램 진입점 (Main 함수)
+// @param argc 전달된 인자 개수
+// @param argv 전달된 인자 배열
+// @return 성공 시 0, 오류 시 1
+// @note
+//	[FileInfoScanner.exe 인자(Arguments) 상세 설명]
+//
+//	사용 형식:
+//	FileInfoScanner.exe [원본경로] [출력모드]
+//
+//	1. [원본경로] (argv[1])
+//    - 파일 정보를 스캔할 원본 폴더의 전체 경로입니다.
+//    - 경로 내 공백이 포함된 경우 공백 대신 ";32;"를 사용할 수 있습니다.
+//
+//	2. [출력모드] (argv[2], 선택)
+//    - 0 : 콘솔 출력 모드 (스캔된 파일 정보를 콘솔 화면에 테이블 형태로 출력합니다.)
+//    - 1 : 엑셀 저장 모드 (스캔된 파일 정보를 원본 경로 내에 "FileInfoResult.xlsx" 파일로 저장합니다.)
+//    - 값을 지정하지 않거나 생략할 경우 기본값은 0 (콘솔 출력)입니다.
+//
+//	[프로그램 실행 예제 및 사용법 안내]
+//	1. 콘솔 출력 예제:
+//		FileInfoScanner.exe "C:\Source" 0
+//
+//	2. 엑셀 저장 예제:
+//		FileInfoScanner.exe "C:\Source" 1
+//
+//	[명령행 인수(Arguments) 설정하고, 디버깅 모드로 실행]
+//	1. 비주얼 스튜디오 상단 메뉴에서 [프로젝트] -> [속성(Properties)]을 클릭합니다. (단축키: Alt + F7)
+//	2. 창 왼쪽 메뉴에서 [구성 속성] -> [디버깅(Debugging)]을 선택합니다.
+//	3. 오른쪽 항목 중 [명령 인수(Command Arguments)] 칸을 클릭합니다.
+//	4. 앞서 만든 실행 예제 중 테스트할 문자열을 입력합니다. (예: "C:\Source" 1)
+//	5. 오른쪽 아래의 [적용] 버튼을 누르고 [확인]을 누릅니다.
+//	6. 키보드의 F5 키를 누르거나, 상단 메뉴의 [디버그] -> [디버깅 시작]을 클릭합니다.
+//
+//***************************************************************************
 int main(int argc, TCHAR* argv[])
 {
 #ifdef _MSC_VER
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-    // 1. 콘솔을 UTF-8 모드로 설정
-    system("chcp 65001 > nul");
+#ifdef _WIN32
+    // 1. C 런타임 로케일 설정
+    setlocale(LC_ALL, ".UTF8");		// printf, scanf 등 C 스타일의 입출력 함수나 일부 문자열 처리 함수들이 UTF-8 문자열을 올바르게 인식하고 처리할 수 있게 함.
 
-    // 2. _tcout이 UTF-8 변환을 할 수 있도록 로케일 설정
-    _tcout.imbue(std::locale(".65001"));
+    // 2. 콘솔 입출력 코드페이지를 UTF-8(65001)로 변경
+    SetConsoleOutputCP(CP_UTF8);	// 프로그램이 콘솔창에 텍스트를 출력할 때(std::cout, printf 등), 유니코드 문자가 깨지지 않고 올바른 모양(한글 등)으로 그려지도록 지정
+    SetConsoleCP(CP_UTF8);			// 사용자가 콘솔창에 키보드로 입력하는 텍스트(std::cin, scanf 등)를 프로그램이 UTF-8 인코딩으로 정확하게 읽어들이도록 보장
+#endif
 
 #ifdef _DEBUG
     static const TCHAR* mockArgv[] = {

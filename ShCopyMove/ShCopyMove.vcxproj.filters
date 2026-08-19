@@ -53,6 +53,12 @@
     <ClCompile Include="..\..\Library\UtilCore\Util\StringUtil.cpp">
       <Filter>UtilCore\Util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Util\DirectoryUtil.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\Util\Log.cpp">
+      <Filter>UtilCore\Util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="pch.h" />
@@ -103,6 +109,12 @@
     </ClInclude>
     <ClInclude Include="..\..\Library\UtilCore\Containers\Queue\ChunkedBlockingQueue.h">
       <Filter>UtilCore\Containers\Queue</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Util\DirectoryUtil.h">
+      <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\Util\Log.h">
+      <Filter>UtilCore\Util</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

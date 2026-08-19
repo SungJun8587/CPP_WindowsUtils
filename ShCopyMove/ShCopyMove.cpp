@@ -1,28 +1,85 @@
-﻿
-//***************************************************************************
+﻿//***************************************************************************
 // ShCopyMove.cpp : Defines the entry point for the console application.
-// 싱글 생산자 - 멀티 소비자(SPMC : Single-Producer Multi-Consumer) 패턴을 
+// 싱글 생산자 - 멀티 소비자(SPMC : Single-Producer Multi-Consumer) 패턴을
 // 이용한 고성능 병렬 파일 복사/이동 프로그램.
+// std::filesystem 기반으로 동작하여 Windows/Linux/macOS에서 동일하게 빌드된다.
 //***************************************************************************
 
 #include "pch.h"
 
+#include <shared_mutex>	// EnsureDestFolder 캐시 조회를 shared_lock으로 최적화하기 위해 사용
+#include <filesystem>
+#include <string>
+#include <cstdio>
+#include <cstdlib>
+
+// Log.h를 수정하지 않고, ShCopyMove.cpp 내에서만 LOG_INFO의 시간을 출력하지 않도록 재정의
+#undef LOG_INFO
+#define LOG_INFO(...) CLogManager::Instance().Write(ELOG_TYPE::LOG_TYPE_INFO, false, __VA_ARGS__)
+
+#ifdef _WIN32
+#include <windows.h>	// 콘솔 출력 코드페이지(UTF-8) 설정에만 사용
+#endif
+
 namespace fs = std::filesystem;
+
+// FO_COPY/FO_MOVE: 원래 Windows <shellapi.h>의 SHFileOperation 상수였으나, 이 파일은
+// std::filesystem으로 직접 구현하여 SHFileOperation을 쓰지 않으므로 실제 값은 의미가 없고
+// 내부적으로 복사/이동 모드를 구분하는 용도로만 쓰인다. pch.h 경로로 이미 <shellapi.h> 등에서
+// 정의된 환경(Windows)이라면 그 값을 그대로 쓰고, 아니라면 여기서 정의한다.
+#ifndef FO_MOVE
+#define FO_MOVE 1
+#endif
+#ifndef FO_COPY
+#define FO_COPY 2
+#endif
+
+//***************************************************************************
+// @brief std::error_code의 메시지를 현재 프로젝트의 문자셋(_UNICODE 여부)에 맞는
+//        _tstring 타입으로 안전하게 변환하는 헬퍼 함수
+// @param ec 변환할 std::error_code 객체
+// @return _UNICODE 환경에서는 std::wstring, 멀티바이트 환경에서는 std::string으로 변환된 문자열
+//***************************************************************************
+inline _tstring ErrorToString(const std::error_code& ec)
+{
+#ifdef _UNICODE
+	std::string narrow = ec.message();
+	return _tstring(narrow.begin(), narrow.end());
+#else
+	return ec.message();
+#endif
+}
+
+//***************************************************************************
+// @brief std::exception의 메시지를 현재 프로젝트의 문자셋(_UNICODE 여부)에 맞는
+//        _tstring 타입으로 안전하게 변환하는 헬퍼 함수
+// @param e 변환할 std::exception 객체
+// @return _UNICODE 환경에서는 std::wstring, 멀티바이트 환경에서는 std::string으로 변환된 문자열
+//***************************************************************************
+inline _tstring ExceptionToString(const std::exception& e)
+{
+#ifdef _UNICODE
+	std::string narrow = e.what();
+	return _tstring(narrow.begin(), narrow.end());
+#else
+	return e.what();
+#endif
+}
 
 //***************************************************************************
 // @brief FO_MOVE 시 소스 폴더의 참조 카운트 기반 정리를 위한 노드
 // @details pendingCount는 1(자체 탐색-진행-중 토큰)로 시작하며, 파일/하위폴더를
-//          발견할 때마다 +1, 각 참조가 해소될 때마다 -1 한다. 0이 되는 순간
-//          (탐색도 끝났고, 하위 파일/폴더도 모두 처리된 시점) 자기 자신을 삭제하고
-//          부모 노드에도 동일하게 전파한다.
+//         발견할 때마다 +1, 각 참조가 해소될 때마다 -1 한다. 0이 되는 순간
+//         (탐색도 끝났고, 하위 파일/폴더도 모두 처리된 시점) 자기 자신을 삭제하고
+//         부모 노드에도 동일하게 전파한다.
 //***************************************************************************
 struct DirNode {
-	_tstring          path;					// 삭제 대상 소스 폴더 경로 (트레일링 백슬래시 없음)
+	fs::path             path;				// 삭제 대상 소스 폴더 경로
 	DirNode* parent;						// 상위 폴더 노드 (루트면 nullptr)
-	std::atomic<int>  pendingCount{ 1 };	// 1 = 자체 탐색 진행 중 토큰
-	bool              isRoot;				// 루트 폴더는 삭제 대상에서 제외
+	std::atomic<int>     pendingCount{ 1 };	// 1 = 자체 탐색 진행 중 토큰
+	bool                 isRoot;				// 루트 폴더는 삭제 대상에서 제외
 
-	DirNode(_tstring p, DirNode* par, bool root)
+	DirNode(fs::path p, DirNode* par, bool root)
 		: path(std::move(p)), parent(par), isRoot(root) {
 	}
 };
@@ -31,37 +88,41 @@ struct DirNode {
 // @brief 개별 파일 작업(복사 또는 이동)에 필요한 경로 및 명령 정보를 담는 구조체
 //***************************************************************************
 struct FileTask {
-	_tstring srcPath;				// 원본 파일 전체 경로
-	_tstring destPath;				// 대상 파일 전체 경로
-	int nFunc;						// 작업 종류(FO_COPY 또는 FO_MOVE)
+	fs::path srcPath;					// 원본 파일 전체 경로
+	fs::path destPath;					// 대상 파일 전체 경로
+	int nFunc;							// 작업 종류(FO_COPY 또는 FO_MOVE)
 	DirNode* dirNode = nullptr;		// FO_MOVE일 때만 사용 (파일 처리 완료 시 참조 해제)
 };
 
 //***************************************************************************
-// @brief 생산자(Producer)와 소비자(Consumer) 스레드 간 안전한 데이터 교환 및 
-//        상태 공유를 위한 컨텍스트 구조체
+// @brief 생산자(Producer)와 소비자(Consumer) 스레드 간 안전한 데이터 교환 및
+//         상태 공유를 위한 컨텍스트 구조체
 //***************************************************************************
 struct FileProcessContext {
 	// 파일 작업 태스크 큐 (락/CV/producerDone 플래그를 내부에서 처리)
 	// 무제한 성장 방지를 위해 최대 10000개로 백프레셔 설정 (필요 시 조정)
 	CChunkedBlockingQueue<struct FileTask> taskQueue{ 10000 };
 
-	std::atomic<bool>   allSuccess{ true };					// 모든 파일 작업이 성공했는지 여부 플래그
+	std::atomic<bool>    allSuccess{ true };					// 모든 파일 작업이 성공했는지 여부 플래그
 	std::atomic<size_t> fileSuccessCount{ 0 };				// 성공적으로 복사/이동된 파일 수
 	std::atomic<size_t> fileFailCount{ 0 };					// 실패한 파일 수
 	std::atomic<size_t> folderCount{ 0 };					// 매칭 파일이 하나라도 있었던(복사/이동 대상이 된) 소스 폴더 수
 	std::atomic<size_t> deletedFolderCount{ 0 };			// 실제로 삭제된 빈 소스 폴더 개수 (FO_MOVE 전용)
+	std::atomic<size_t> scanErrorCount{ 0 };				// 디렉터리 열람 실패로 일부/전체 항목을 건너뛴 폴더 수
 
 	// 대상(Destination) 측 폴더 생성 집계용. 여러 컨슈머 스레드가 동시에
-	// 같은 대상 폴더를 만들려고 경쟁할 수 있으므로 뮤텍스로 보호.
-	std::mutex                    createdFoldersMutex;
-	std::unordered_set<_tstring>  createdFolders;			// 이미 생성(확인)된 대상 폴더 경로 집합(중복 생성/중복 집계 방지 겸 캐시)
-	std::atomic<size_t>           createdFolderCount{ 0 };	// 실제로 새로 생성된 대상 폴더 수
+	// 같은 대상 폴더를 만들려고 경쟁할 수 있으므로 shared_mutex로 보호.
+	// 조회(읽기)가 압도적으로 많고 실제 생성(쓰기)은 드물게 발생하므로,
+	// 읽기 시에는 shared_lock으로 여러 스레드가 동시에 캐시를 조회할 수 있게 한다.
+	// 캐시 키는 fs::path::string_type(native 인코딩) — std::hash가 표준으로 지원된다.
+	std::shared_mutex                         createdFoldersMutex;
+	std::unordered_set<fs::path::string_type>     createdFolders;		// 이미 생성(확인)된 대상 폴더 경로 집합(중복 생성/중복 집계 방지 겸 캐시)
+	std::atomic<size_t>                         createdFolderCount{ 0 };	// 실제로 새로 생성된 대상 폴더 수
 };
 
 //***************************************************************************
 // @brief DirNode 참조를 하나 해소한다. 마지막 참조라면 해당 폴더를 삭제하고
-//        부모로 전파한다. (여러 컨슈머 스레드에서 동시 호출되어도 안전)
+//         부모로 전파한다. (여러 컨슈머 스레드에서 동시 호출되어도 안전)
 // @param ctx 삭제 성공 시 deletedFolderCount 집계를 위한 공유 컨텍스트
 //***************************************************************************
 void ReleaseDirNode(DirNode* node, FileProcessContext& ctx)
@@ -77,8 +138,9 @@ void ReleaseDirNode(DirNode* node, FileProcessContext& ctx)
 
 		if( !node->isRoot )
 		{
-			// 빈 폴더가 아니면(이동 실패 잔여 파일 등) RemoveDirectory가 알아서 실패하고 무시됨
-			if( RemoveDirectory(node->path.c_str()) )
+			// 빈 폴더가 아니면(이동 실패 잔여 파일 등) remove가 알아서 실패하고 무시됨
+			std::error_code ec;
+			if( fs::remove(node->path, ec) )
 			{
 				ctx.deletedFolderCount.fetch_add(1, std::memory_order_relaxed);
 			}
@@ -91,25 +153,36 @@ void ReleaseDirNode(DirNode* node, FileProcessContext& ctx)
 
 //***************************************************************************
 // @brief 대상 폴더가 없으면 생성하고, 실제로 새로 생성한 세그먼트 수만큼
-//        ctx.createdFolderCount를 증가시킨다. 여러 컨슈머 스레드가 동시에
-//        같은 경로를 생성하려 해도 정확히 1번만 카운트된다.
+//         ctx.createdFolderCount를 증가시킨다. 여러 컨슈머 스레드가 동시에
+//         같은 경로를 생성하려 해도 정확히 1번만 카운트된다.
 // @param destFolder 존재를 보장해야 할 대상 폴더 경로 (파일이 아닌 폴더)
 // @param ctx 공유 컨텍스트
 // @return 성공 시 true, 생성 실패 시 false
-// @note 대부분의 호출(이미 생성된 폴더)은 락 없이 fs::exists()만으로 빠르게
-//       반환되며, 실제 생성이 필요한 드문 경우에만 락을 잡는다.
+// @note 대부분의 호출(이미 생성된 폴더)은 shared_lock 상태의 캐시 조회만으로
+//        (파일시스템 syscall 없이) 빠르게 반환되며, 실제 생성이 필요한 드문
+//        경우에만 unique_lock을 잡는다.
 //***************************************************************************
 bool EnsureDestFolder(const fs::path& destFolder, FileProcessContext& ctx)
 {
 	if( destFolder.empty() )
 		return true;
 
-	// 빠른 경로: 락 없이 존재 확인만으로 대부분의 호출을 끝냄
-	std::error_code existsEc;
-	if( fs::exists(destFolder, existsEc) )
-		return true;
+	const fs::path::string_type key = destFolder.native();
 
-	std::lock_guard<std::mutex> lock(ctx.createdFoldersMutex);
+	// 빠른 경로: 캐시(createdFolders)를 shared_lock으로 먼저 조회한다.
+	// 이미 생성이 확인된 폴더라면 파일시스템 syscall 없이 메모리 조회만으로 끝난다.
+	{
+		std::shared_lock<std::shared_mutex> readLock(ctx.createdFoldersMutex);
+		if( ctx.createdFolders.find(key) != ctx.createdFolders.end() )
+			return true;
+	}
+
+	std::unique_lock<std::shared_mutex> lock(ctx.createdFoldersMutex);
+
+	// 더블 체크: 위 shared_lock 해제 후 unique_lock 획득 사이에 다른
+	// 스레드가 이미 같은 경로를 캐시에 넣었을 수 있으므로 재확인한다.
+	if( ctx.createdFolders.find(key) != ctx.createdFolders.end() )
+		return true;
 
 	// 경로를 상위 -> 하위 순으로 순회하며, 아직 만들어지지 않은 세그먼트만 생성
 	fs::path current;
@@ -144,8 +217,8 @@ bool EnsureDestFolder(const fs::path& destFolder, FileProcessContext& ctx)
 
 //***************************************************************************
 // @brief 단일 파일의 복사 또는 이동 작업을 처리하는 핵심 함수
-// @param srcPath 원본 파일 경로
-// @param destPath 대상 파일 경로
+// @param src 원본 파일 경로
+// @param dest 대상 파일 경로
 // @param nFunc 작업 종류 (FO_COPY 또는 FO_MOVE)
 // @param ctx 대상 폴더 생성 집계를 위한 공유 컨텍스트
 // @return 작업 성공 시 true, 실패 시 false
@@ -155,27 +228,28 @@ bool EnsureDestFolder(const fs::path& destFolder, FileProcessContext& ctx)
 //   - rename()이 실패하는 대표적 케이스(다른 드라이브/볼륨 간 이동 등)에는
 //     copy_file() + remove()로 폴백한다. 이때 remove()의 성공 여부도
 //     반드시 확인하여, 복사는 됐지만 원본 삭제가 실패한 상태를 실패로 보고한다.
-//   - 실패 시 원인 파악을 위해 예외 메시지와 대상 경로를 stderr로 남긴다.
+//   - 실패 시 원인 파악을 위해 예외 메시지와 대상 경로를 로그 파일로 남긴다.
 //***************************************************************************
-bool ProcessSingleFile(const _tstring& srcPath, const _tstring& destPath, int nFunc, FileProcessContext& ctx) {
-	try {
-		fs::path src(srcPath);
-		fs::path dest(destPath);
-
+bool ProcessSingleFile(const fs::path& src, const fs::path& dest, int nFunc, FileProcessContext& ctx) 
+{
+	try 
+	{
 		// 대상 디렉토리가 존재하지 않으면 자동으로 생성 (실제 생성 수는 ctx에 집계됨)
 		if( dest.has_parent_path() )
 		{
 			if( !EnsureDestFolder(dest.parent_path(), ctx) )
 			{
-				_ftprintf(stderr, _T("[오류] 대상 폴더 생성 실패: %s\n"), dest.parent_path().c_str());
+				LOG_ERROR(_T("[오류] 대상 폴더 생성 실패: %s"), dest.parent_path().native().c_str());
 				return false;
 			}
 		}
 
-		if( nFunc == FO_COPY ) {
+		if( nFunc == FO_COPY ) 
+		{
 			fs::copy_file(src, dest, fs::copy_options::overwrite_existing);
 		}
-		else if( nFunc == FO_MOVE ) {
+		else if( nFunc == FO_MOVE ) 
+		{
 			std::error_code ec;
 			fs::rename(src, dest, ec);
 
@@ -187,133 +261,134 @@ bool ProcessSingleFile(const _tstring& srcPath, const _tstring& destPath, int nF
 				if( !fs::remove(src, ec) || ec )
 				{
 					// 복사는 성공했으나 원본 삭제가 실패한 경우: 중복 파일이 남으므로 실패로 취급
-					_ftprintf(stderr, _T("[MOVE 경고] 원본 삭제 실패: %s (오류: %hs)\n"),
-						src.c_str(), ec.message().c_str());
+					LOG_WARNING(_T("[MOVE 경고] 원본 삭제 실패: %s (오류: %s)"), src.native().c_str(), ErrorToString(ec).c_str());
 					return false;
 				}
 			}
 		}
 		return true;
 	}
-	catch( const std::exception& e ) {
-		_ftprintf(stderr, _T("[오류] 파일 처리 실패: %s -> %s (사유: %hs)\n"),
-			srcPath.c_str(), destPath.c_str(), e.what());
+	catch( const std::exception& e ) 
+	{
+		LOG_ERROR(_T("[오류] 파일 처리 실패: %s -> %s (사유: %s)"), src.native().c_str(), dest.native().c_str(), ExceptionToString(e).c_str());
 		return false;
 	}
 }
 
 //***************************************************************************
 // @brief 지정한 소스 폴더를 재귀적으로 탐색하며 조건에 맞는 파일을 찾아 큐에 적재하는 헬퍼 함수
-// @param ptszSourceFolder 탐색할 원본 폴더 경로
-// @param ptszDestFolder 복사/이동될 대상 폴더 경로
+// @param sourceFolder 탐색할 원본 폴더 경로
+// @param destFolder 복사/이동될 대상 폴더 경로
 // @param ShApplyFileInfo 파일 필터링 조건 정보 (확장자, 날짜 등)
-//        * m_nFilterMode 의미:
+//         * m_nFilterMode 의미:
 //			- 0 : 필터링 없음 (전체 허용)
 //          - 1 : 화이트리스트 (지정한 확장자만 허용)
 //          - 2 : 블랙리스트 (지정한 확장자는 비허용/제외)
 // @param nFunc 작업 종류 (FO_COPY 또는 FO_MOVE)
 // @param ctx 스레드 간 공유 컨텍스트 (스레드 안전한 작업 큐와 동기화 객체 포함)
 // @param parentNode FO_MOVE일 때, 이 폴더의 상위 폴더를 나타내는 참조 카운트 노드
-//        (nullptr이면 최상위 호출 = 소스 루트 폴더)
+//         (nullptr이면 최상위 호출 = 소스 루트 폴더)
+// @note std::filesystem::directory_iterator는 "."/".." 항목을 애초에 반환하지
+//        않으므로 별도 필터링이 필요 없다. 정션/심볼릭 링크는 재귀 무한 루프
+//        방지를 위해 하위 폴더 탐색 대상에서만 제외한다(파일 자체는 그대로 처리).
 //***************************************************************************
-void DirectoryRecursiveSearch(const TCHAR* ptszSourceFolder, const TCHAR* ptszDestFolder,
+void DirectoryRecursiveSearch(const fs::path& sourceFolder, const fs::path& destFolder,
 	SH_APPLY_FILEINFO& ShApplyFileInfo, int nFunc, FileProcessContext& ctx,
 	DirNode* parentNode = nullptr)
 {
-	BOOL		bResult = true;
-	TCHAR		tszActiveFolder[DIRECTORY_STRLEN + 16];
-	TCHAR		tszSourceFullPath[FULLPATH_STRLEN];
-	TCHAR		tszSourceFolder[DIRECTORY_STRLEN];
-	TCHAR		tszDestFullPath[FULLPATH_STRLEN];
-	TCHAR		tszDestFolder[DIRECTORY_STRLEN];
-
-	WIN32_FIND_DATA		FindData;
-	HANDLE				hFindFile;
-
 	// 이 폴더에서 매칭 파일을 큐잉했는지 여부 (folderCount 중복 집계 방지용, producer 단일 스레드 로컬 변수)
 	bool bFolderCounted = false;
 
-	// 인자 유효성 검사
-	if( !ptszSourceFolder || !ptszDestFolder ) return;
-	if( _tcslen(ptszSourceFolder) < 1 || _tcslen(ptszDestFolder) < 1 ) return;
+	if( sourceFolder.empty() || destFolder.empty() ) return;
 
 	// FO_MOVE일 때만 이 폴더에 대한 참조 카운트 노드 생성 (COPY는 삭제 대상 아니므로 nullptr 유지)
 	DirNode* dirNode = nullptr;
 	if( nFunc == FO_MOVE )
 	{
-		dirNode = new DirNode(ptszSourceFolder, parentNode, parentNode == nullptr);
+		dirNode = new DirNode(sourceFolder, parentNode, parentNode == nullptr);
 	}
 
-	// 원본 경로 문자열 끝에 역슬래시(\)가 없으면 추가하여 검색 패턴 정규화
-	if( ptszSourceFolder[_tcslen(ptszSourceFolder) - 1] != '/' && ptszSourceFolder[_tcslen(ptszSourceFolder) - 1] != '\\' )
+	std::error_code dirEc;
+	fs::directory_iterator it(sourceFolder, fs::directory_options::skip_permission_denied, dirEc);
+	fs::directory_iterator end;
+
+	if( dirEc )
 	{
-		_sntprintf_s(tszSourceFolder, _countof(tszSourceFolder), _TRUNCATE, _T("%s\\"), ptszSourceFolder);
-		_sntprintf_s(tszActiveFolder, _countof(tszActiveFolder), _TRUNCATE, _T("%s\\*.*"), ptszSourceFolder);
+		// 폴더 자체를 열람하지 못함 (권한/경로 문제 등) — 조용히 넘기지 않고 반드시 남긴다
+		LOG_WARNING(_T("[경고] 폴더 열람 실패, 건너뜀: %s (오류: %s)"), sourceFolder.native().c_str(), ErrorToString(dirEc).c_str());
+		ctx.scanErrorCount.fetch_add(1, std::memory_order_relaxed);
+		ctx.allSuccess.store(false);
 	}
 	else
 	{
-		_sntprintf_s(tszSourceFolder, _countof(tszSourceFolder), _TRUNCATE, _T("%s"), ptszSourceFolder);
-		_sntprintf_s(tszActiveFolder, _countof(tszActiveFolder), _TRUNCATE, _T("%s*.*"), ptszSourceFolder);
-	}
-
-	// 대상 경로 문자열 끝에 역슬래시(\)가 없으면 추가
-	if( ptszDestFolder[_tcslen(ptszDestFolder) - 1] != '/' && ptszDestFolder[_tcslen(ptszDestFolder) - 1] != '\\' )
-		_sntprintf_s(tszDestFolder, _countof(tszDestFolder), _TRUNCATE, _T("%s\\"), ptszDestFolder);
-	else
-		_sntprintf_s(tszDestFolder, _countof(tszDestFolder), _TRUNCATE, _T("%s"), ptszDestFolder);
-
-	// 파일 및 디렉토리 검색 핸들 열기
-	hFindFile = FindFirstFile(tszActiveFolder, &FindData);
-
-	// FindFirstFile 실패 시(핸들 무효) 아래 루프/FindClose를 모두 건너뛴다.
-	if( INVALID_HANDLE_VALUE != hFindFile )
-	{
-		while( bResult )
+		while( it != end )
 		{
-			if( FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY )
-			{
-				// 현재 디렉토리('.')와 상위 디렉토리('..')는 제외하고 하위 폴더 탐색
-				// 재귀 무한 루프 방지를 위해 심볼릭 링크/정션(REPARSE POINT)은 하위 탐색에서 제외
-				if( _tcscmp(FindData.cFileName, _T(".")) != 0 && _tcscmp(FindData.cFileName, _T("..")) != 0
-					&& !(FindData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) )
-				{
-					_sntprintf_s(tszSourceFullPath, _countof(tszSourceFullPath), _TRUNCATE, _T("%s%s"), tszSourceFolder, FindData.cFileName);
-					_sntprintf_s(tszDestFullPath, _countof(tszDestFullPath), _TRUNCATE, _T("%s%s"), tszDestFolder, FindData.cFileName);
+			const fs::directory_entry& entry = *it;
 
-					// 하위 폴더에 대한 참조를 미리 등록한 뒤 재귀 호출
-					if( dirNode ) dirNode->pendingCount.fetch_add(1, std::memory_order_relaxed);
-					DirectoryRecursiveSearch(tszSourceFullPath, tszDestFullPath, ShApplyFileInfo, nFunc, ctx, dirNode);
-				}
+			std::error_code typeEc;
+			bool bIsDir = entry.is_directory(typeEc);
+
+			if( typeEc )
+			{
+				// 파일/폴더 상태 조회 자체가 실패한 항목 — 예전에는 로그도 카운트도 없이
+				// 그냥 통째로 건너뛰어서, 이 경로로 빠진 파일이 있어도 알 방법이 없었다.
+				LOG_WARNING(_T("[경고] 상태 조회 실패로 건너뜀: %s (오류: %s)"), entry.path().native().c_str(), ErrorToString(typeEc).c_str());
+				ctx.scanErrorCount.fetch_add(1, std::memory_order_relaxed);
+				ctx.allSuccess.store(false);
 			}
 			else
 			{
-				// 파일 경로 조합
-				_sntprintf_s(tszSourceFullPath, _countof(tszSourceFullPath), _TRUNCATE, _T("%s%s"), tszSourceFolder, FindData.cFileName);
-				_sntprintf_s(tszDestFullPath, _countof(tszDestFullPath), _TRUNCATE, _T("%s%s"), tszDestFolder, FindData.cFileName);
-
-				// 필터 조건(모드 0, 1, 2)에 부합하는 파일일 경우에만 처리 대상을 큐에 적재
-				if( IsAbleFile(tszSourceFullPath, ShApplyFileInfo) )
+				if( bIsDir )
 				{
-					// 이 폴더에서 처음 매칭된 파일이면 folderCount 1회 증가
-					if( !bFolderCounted )
+					// 재귀 무한 루프 방지를 위해 심볼릭 링크/정션은 하위 탐색에서 제외
+					std::error_code linkEc;
+					if( !fs::is_symlink(entry.symlink_status(linkEc)) )
 					{
-						ctx.folderCount.fetch_add(1, std::memory_order_relaxed);
-						bFolderCounted = true;
+						const fs::path& srcFullPath = entry.path();
+						fs::path destFullPath = destFolder / srcFullPath.filename();
+
+						// 하위 폴더에 대한 참조를 미리 등록한 뒤 재귀 호출
+						if( dirNode ) dirNode->pendingCount.fetch_add(1, std::memory_order_relaxed);
+						DirectoryRecursiveSearch(srcFullPath, destFullPath, ShApplyFileInfo, nFunc, ctx, dirNode);
 					}
+				}
+				else
+				{
+					const fs::path& srcFullPath = entry.path();
 
-					// 이 파일이 처리 완료될 때까지 이 폴더가 삭제되지 않도록 참조 등록
-					if( dirNode ) dirNode->pendingCount.fetch_add(1, std::memory_order_relaxed);
+					// 필터 조건(모드 0, 1, 2 + 날짜 범위)에 부합하는 파일일 경우에만 처리 대상을 큐에 적재
+					if( IsAbleFile(srcFullPath, ShApplyFileInfo) )
+					{
+						fs::path destFullPath = destFolder / srcFullPath.filename();
 
-					// 큐에 새로운 작업을 삽입 (락/알림은 CChunkedBlockingQueue 내부에서 처리됨)
-					// maxQueueSize에 도달하면 컨슈머가 소비할 때까지 여기서 블로킹됨
-					ctx.taskQueue.Push({ tszSourceFullPath, tszDestFullPath, nFunc, dirNode });
+						// 이 폴더에서 처음 매칭된 파일이면 folderCount 1회 증가
+						if( !bFolderCounted )
+						{
+							ctx.folderCount.fetch_add(1, std::memory_order_relaxed);
+							bFolderCounted = true;
+						}
+
+						// 이 파일이 처리 완료될 때까지 이 폴더가 삭제되지 않도록 참조 등록
+						if( dirNode ) dirNode->pendingCount.fetch_add(1, std::memory_order_relaxed);
+
+						// 큐에 새로운 작업을 삽입 (락/알림은 CChunkedBlockingQueue 내부에서 처리됨)
+						// maxQueueSize에 도달하면 컨슈머가 소비할 때까지 여기서 블로킹됨
+						ctx.taskQueue.Push({ srcFullPath, destFullPath, nFunc, dirNode });
+					}
 				}
 			}
 
-			bResult = FindNextFile(hFindFile, &FindData);
+			// increment 직후 바로 오류를 확인해야 한다 — 표준 규격상 실패 시 it이 곧바로 end가 되어
+			// 버려서, 루프 조건 재평가 시점에는 이미 오류 정보를 관찰할 수 없기 때문이다.
+			it.increment(dirEc);
+			if( dirEc )
+			{
+				LOG_WARNING(_T("[경고] 폴더 열람 중 오류로 나머지 항목을 건너뜀: %s (오류: %s)"), sourceFolder.native().c_str(), ErrorToString(dirEc).c_str());
+				ctx.scanErrorCount.fetch_add(1, std::memory_order_relaxed);
+				ctx.allSuccess.store(false);
+				break;
+			}
 		}
-
-		FindClose(hFindFile);
 	}
 
 	// 이 폴더의 탐색이 완전히 끝남 -> 자체 참조(1) 해소.
@@ -330,10 +405,10 @@ void DirectoryRecursiveSearch(const TCHAR* ptszSourceFolder, const TCHAR* ptszDe
 // @param nFunc 작업 종류 (FO_COPY 또는 FO_MOVE)
 // @param ctx 스레드 간 공유 컨텍스트
 //***************************************************************************
-void ProducerFunc(const _tstring& srcPath, const _tstring& destPath,
+void ProducerFunc(const fs::path& srcPath, const fs::path& destPath,
 	SH_APPLY_FILEINFO& ShApplyFileInfo, int nFunc, FileProcessContext& ctx)
 {
-	DirectoryRecursiveSearch(srcPath.c_str(), destPath.c_str(), ShApplyFileInfo, nFunc, ctx);
+	DirectoryRecursiveSearch(srcPath, destPath, ShApplyFileInfo, nFunc, ctx);
 
 	// 디렉토리 탐색 완료 신호 (내부적으로 대기 중인 모든 소비자 스레드를 깨움)
 	ctx.taskQueue.SetProducerDone();
@@ -384,73 +459,6 @@ void ConsumerFunc(FileProcessContext& ctx)
 // @param argc 전달된 인자 개수
 // @param argv 전달된 인자 배열
 // @return 성공 시 0, 오류 시 1
-// @note 
-//	[ShCopyMove.exe 인자(Arguments) 상세 설명]
-// 
-//	사용 형식:
-//	ShCopyMove.exe [모드] [원본경로] [대상경로] [필터적용여부] [확장자필터] [시작일] [종료일]
-//
-//	1. [모드] (argv[1])
-//    - C : 파일을 지정된 경로로 복사합니다 (FO_COPY).
-//    - M : 파일을 지정된 경로로 이동합니다 (FO_MOVE).
-//          (이동 후 소스 하위 폴더에 파일이 남지 않으면 해당 폴더를 자동 삭제합니다.
-//           단, 인자로 지정한 최상위 소스 폴더 자체는 삭제하지 않습니다.)
-//
-//	2. [원본경로] (argv[2])
-//    - 복사 또는 이동 작업을 수행할 원본 폴더(또는 파일)의 전체 경로입니다.
-//    - 경로 내 공백이 포함된 경우 공백 대신 ";32;"를 사용해야 합니다. (예: "C:\My;32;Folder")
-//
-//	3. [대상경로] (argv[3])
-//    - 파일이 복사되거나 이동되어 저장될 목적지 폴더의 전체 경로입니다.
-//    - 대상 디렉토리가 존재하지 않을 경우 프로그램이 자동으로 생성합니다.
-//
-//	4. [필터적용여부] (argv[4])
-//    - 0 : 필터링 없음 (모든 파일 대상)
-//    - 1 : 화이트리스트 (지정한 확장자만 허용)
-//    - 2 : 블랙리스트 (지정한 확장자는 비허용/제외)
-//
-//	5. [확장자필터] (argv[5])
-//    - 필터링할 파일 확장자를 지정합니다. (예: "txt")
-//    - 여러 개의 확장자를 동시에 지정할 경우 세미콜론(;)으로 구분합니다. (예: "txt;log;csv")
-//    - 필터링을 사용하지 않는 경우 빈 문자열("")을 입력합니다.
-//
-//	6. [시작일] (argv[6])
-//    - 파일 수정일(Modified Date)을 기준으로 필터링할 시작 날짜입니다.
-//    - YYYYMMDD 형식으로 입력합니다. (예: "20260101" = 2026년 1월 1일 이후 수정된 파일)
-//
-//	7. [종료일] (argv[7])
-//    - 파일 수정일(Modified Date)을 기준으로 필터링할 종료 날짜입니다.
-//    - YYYYMMDD 형식으로 입력합니다. (예: "20260807" = 2026년 8월 7일 이전 수정된 파일)
-//
-//	8. [소비자 스레드 수] (argv[8], 선택)
-//    - 파일 복사/이동을 병렬로 처리할 소비자(Consumer) 스레드 개수입니다.
-//    - 값을 지정하지 않거나 0을 입력하면 시스템 프로세서 코어 개수
-//      (SYSTEM::CoreCount())로 자동 설정됩니다.
-//    - 원본/대상 저장장치의 종류(SSD/HDD/네트워크 드라이브 등)에 따라
-//      최적 스레드 수가 다르므로 필요 시 직접 조정할 수 있습니다.
-//
-//	[프로그램 실행 예제 및 사용법 안내]
-//	1. 파일 복사 예제 (필터링 적용):
-//		ShCopyMove.exe C "C:\Source" "D:\Dest" 1 "txt" "20260101" "20260807"
-//
-//  2. 파일 이동 예제 (필터링 미적용):
-//		ShCopyMove.exe M "C:\Work" "D:\Archive" 0 "" "" ""
-// 
-//  3. 공백 경로 처리 주의사항:
-//		경로 내에 공백이 포함된 경우, 공백 대신 ";32;" 문자열을 사용해야 합니다.
-//		예: ShCopyMove.exe C "C:\My;32;Documents" "D:\Backup" 0 "" "" ""
-//
-//  4. 소비자 스레드 수 직접 지정 예제 (8개 스레드로 처리):
-//		ShCopyMove.exe C "C:\Source" "D:\Dest" 0 "" "" "" 8
-//
-//	[명령행 인수(Arguments) 설정하고, 디버깅 모드로 실행] : 인수에 문자열 깨짐 현상으로 [디버깅용] 인자 강제 오버라이드 (F5 테스트용) 설정
-//	1. 비주얼 스튜디오 상단 메뉴에서 [프로젝트] -> [속성(Properties)]을 클릭합니다.(단축키: Alt + F7)
-//	2. 창 왼쪽 메뉴에서[구성 속성] -> [디버깅(Debugging)]을 선택합니다.
-//	3. 오른쪽 항목 중[명령 인수(Command Arguments)] 칸을 클릭합니다.
-//	4. 앞서 만든 실행 예제 중 테스트할 문자열을 입력합니다.(C "C:\Source" "D:\Dest" 1 "txt" "20260101" "20260807")
-//	5. 오른쪽 아래의 [적용] 버튼을 누르고 [확인]을 누릅니다.
-//	6. 키보드의 F5 키를 누르거나, 상단 메뉴의 [디버그] -> [디버깅 시작]을 클릭합니다.
-// 
 //***************************************************************************
 int main(int argc, TCHAR* argv[])
 {
@@ -458,88 +466,72 @@ int main(int argc, TCHAR* argv[])
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	// 한글 콘솔 출력 설정
-	_tsetlocale(LC_ALL, _T("Korean"));
+#ifdef _WIN32
+	// 1. C 런타임 로케일 설정
+	setlocale(LC_ALL, ".UTF8");		// printf, scanf 등 C 스타일의 입출력 함수나 일부 문자열 처리 함수들이 UTF-8 문자열을 올바르게 인식하고 처리할 수 있게 함.
+
+	// 2. 콘솔 입출력 코드페이지를 UTF-8(65001)로 변경
+	SetConsoleOutputCP(CP_UTF8);	// 프로그램이 콘솔창에 텍스트를 출력할 때(std::cout, printf 등), 유니코드 문자가 깨지지 않고 올바른 모양(한글 등)으로 그려지도록 지정
+	SetConsoleCP(CP_UTF8);			// 사용자가 콘솔창에 키보드로 입력하는 텍스트(std::cin, scanf 등)를 프로그램이 UTF-8 인코딩으로 정확하게 읽어들이도록 보장
+#endif
+
+	// 로그 매니저 초기화 (실행 파일 경로 기준 "Log" 디렉토리에 로그 파일 생성)
+	// CLogManager::Instance().Create(_T("Log\\"));
 
 	// ==========================================
 	// [디버깅용] 인자 강제 오버라이드 (F5 테스트용)
 	// ==========================================
 #ifdef _DEBUG
-	// const TCHAR*로 안전하게 배열을 선언합니다.
 	static const TCHAR* mockArgv[] = {
 		_T("ShCopyMove.exe"), // argv[0]: 프로그램 이름
-		_T("M"),              // argv[1]: 작업 모드(C 또는 M)
-		_T("C:\\Source"),     // argv[2]: 원본 경로
+		_T("C"),              // argv[1]: 작업 모드(C 또는 M)
+		_T("D:\\Source"),     // argv[2]: 원본 경로
 		_T("D:\\Dest"),       // argv[3]: 대상 경로
-		_T("1"),              // argv[4]: 필터링 적용 여부(0/1/2 : 전체 허용/지정한 확장자만 허용/지정한 확장자는 제외)
-		_T("aspx;resx"),	  // argv[5]: 확장자 필터("txt;log;csv"만 허용)
+		_T("0"),              // argv[4]: 필터링 적용 여부(0/1/2 : 전체 허용/지정한 확장자만 허용/지정한 확장자는 제외)
+		_T("aspx;resx"),      // argv[5]: 확장자 필터
 		_T("20120101"),       // argv[6]: 수정일 기준 시작일
-		_T("20260807"),       // argv[7]: 수정일 기준 종료일
+		_T("20261231"),       // argv[7]: 수정일 기준 종료일
 		_T("0")               // argv[8]: 소비자 스레드 수(0 또는 미지정 시 CoreCount() 사용)
 	};
 
-	argc = _countof(mockArgv);
-	// const 포인터 배열을 main의 인자 규격인 TCHAR**로 안전하게 변환합니다.
+	argc = static_cast<int>(std::size(mockArgv));
 	argv = const_cast<TCHAR**>(mockArgv);
 #endif
 
-	int		nFunc = 0;
-	TCHAR	tszProgressTitle[32];
-	TCHAR	tszSrcFullPath[FULLPATH_STRLEN];
-	TCHAR	tszDestFullPath[FULLPATH_STRLEN];
+	int nFunc = 0;
 
-	SH_APPLY_FILEINFO	ShApplyFileInfo;
-	memset(&ShApplyFileInfo, 0, sizeof(ShApplyFileInfo));
+	SH_APPLY_FILEINFO ShApplyFileInfo;
 
 	if( argc < 5 )
 	{
-		printf("알림 : 잘못된 요청입니다.");
+		LOG_ERROR(_T("알림 : 잘못된 요청입니다. 인자 개수가 부족합니다."));
 		return 1;
 	}
 
 	// [인자 1] 작업 모드 설정 (M: 파일 이동, 그 외: 파일 복사)
-	if( argc > 1 )
-	{
-		if( argv[1][0] == 'M' )
-		{
-			_tcsncpy_s(tszProgressTitle, _countof(tszProgressTitle), _T("파일 이동"), _TRUNCATE);
-			nFunc = FO_MOVE;
-		}
-		else
-		{
-			_tcsncpy_s(tszProgressTitle, _countof(tszProgressTitle), _T("파일 복사"), _TRUNCATE);
-			nFunc = FO_COPY;
-		}
-	}
+	nFunc = (argv[1][0] == _T('M')) ? FO_MOVE : FO_COPY;
 
-	// [인자 2] 원본 디렉토리/파일 전체 경로 설정
-	if( argc > 2 ) _tcsncpy_s(tszSrcFullPath, _countof(tszSrcFullPath), argv[2], _TRUNCATE);
-
-	// [인자 3] 대상 디렉토리/파일 전체 경로 설정
-	if( argc > 3 ) _tcsncpy_s(tszDestFullPath, _countof(tszDestFullPath), argv[3], _TRUNCATE);
+	// [인자 2, 3] 원본/대상 전체 경로 설정 (공백 치환 처리 후 fs::path로 구성)
+	_tstring strSrc = replaceAll(_tstring(argv[2]), _T(";32;"), _T(" "));
+	_tstring strDest = replaceAll(_tstring(argv[3]), _T(";32;"), _T(" "));
+	fs::path srcFullPath(strSrc);
+	fs::path destFullPath(strDest);
 
 	// [인자 4] 필터 모드 설정 (0: 미적용, 1: 화이트리스트, 2: 블랙리스트)
-	if( argc > 4 )
-	{
-		ShApplyFileInfo.m_nFilterMode = _ttoi(argv[4]); // 문자열을 숫자로 변환
-	}
+	ShApplyFileInfo.m_nFilterMode = std::stoi(_tstring(argv[4]));
 
 	// [인자 5] 필터링할 대상 확장자 설정 (예: txt, log 등)
-	if( argc > 5 ) _tcsncpy_s(ShApplyFileInfo.m_tszApplyExt, _countof(ShApplyFileInfo.m_tszApplyExt), argv[5], _TRUNCATE);
+	if( argc > 5 ) ShApplyFileInfo.m_tszApplyExt = argv[5];
 
-	// [인자 6] 파일 수정일 기준 시작일 조건 설정
-	if( argc > 6 ) _tcsncpy_s(ShApplyFileInfo.m_tszModifyStDate, _countof(ShApplyFileInfo.m_tszModifyStDate), argv[6], _TRUNCATE);
+	// [인자 6] 날짜 필터 시작일 설정
+	if( argc > 6 ) ShApplyFileInfo.m_tszModifyStDate = argv[6];
 
-	// [인자 7] 파일 수정일 기준 종료일 조건 설정
-	if( argc > 7 ) _tcsncpy_s(ShApplyFileInfo.m_tszModifyEdDate, _countof(ShApplyFileInfo.m_tszModifyEdDate), argv[7], _TRUNCATE);
+	// [인자 7] 날짜 필터 종료일 설정
+	if( argc > 7 ) ShApplyFileInfo.m_tszModifyEdDate = argv[7];
 
 	// [인자 8] 소비자 스레드 수 설정(선택, 미지정 또는 0이면 이후 CoreCount()로 대체)
 	size_t nRequestedThreads = 0;
-	if( argc > 8 ) nRequestedThreads = static_cast<size_t>(_ttoi(argv[8]));
-
-	// 공백 치환 처리
-	_tstring strSrc = replaceAll(tszSrcFullPath, _T(";32;"), _T(" "));
-	_tstring strDest = replaceAll(tszDestFullPath, _T(";32;"), _T(" "));
+	if( argc > 8 ) nRequestedThreads = static_cast<size_t>(std::stoi(_tstring(argv[8])));
 
 	FileProcessContext ctx;
 	CThreadManager threadManager;
@@ -550,7 +542,8 @@ int main(int argc, TCHAR* argv[])
 		? nRequestedThreads
 		: static_cast<size_t>(SYSTEM::CoreCount());
 
-	_tprintf(_T("\n싱글 생산자 - 멀티 소비자 병렬 처리를 시작합니다 (소비자 스레드 수: %zu)...\n"), numThreads);
+	LOG_INFO(_T("싱글 생산자 - 멀티 소비자 병렬 처리를 시작합니다 (소비자 스레드 수: %zu)..."), numThreads);
+	LOG_INFO(_T("작업 설정 - 원본: %s, 대상: %s"), srcFullPath.native().c_str(), destFullPath.native().c_str());
 
 	// 소비자(Consumer) 스레드 풀 생성 및 실행
 	for( size_t t = 0; t < numThreads; ++t )
@@ -561,28 +554,50 @@ int main(int argc, TCHAR* argv[])
 	}
 
 	// 싱글 생산자(Producer) 실행(메인 스레드에서 디렉토리 탐색 및 작업 공급 전담)
-	ProducerFunc(strSrc, strDest, ShApplyFileInfo, nFunc, ctx);
+	ProducerFunc(srcFullPath, destFullPath, ShApplyFileInfo, nFunc, ctx);
 
 	// 모든 소비자 스레드가 잔여 태스크를 모두 처리하고 종료될 때까지 대기
 	threadManager.JoinThreads();
 
 	// 전체 작업 결과 출력
 	if( ctx.allSuccess.load() )
-		_tprintf(_T("알림 : 모든 작업이 성공적으로 완료되었습니다.\n\n"));
+	{
+		LOG_INFO(_T("알림 : 모든 작업이 성공적으로 완료되었습니다."));
+	}
 	else
-		_tprintf(_T("알림 : 일부 파일 작업 중 오류가 발생했습니다.\n\n"));
+	{
+		LOG_WARNING(_T("알림 : 일부 파일 작업 중 오류가 발생했습니다."));
+	}
 
-	_tprintf(_T("- %s된 폴더 수 (소스 기준) : %s\n"), (nFunc == FO_MOVE) ? _T("이동") : _T("복사"), addCommas(ctx.folderCount.load()).c_str());
+	const _tstring actionLabel = (nFunc == FO_MOVE) ? _T("이동") : _T("복사");
+
+	LOG_INFO(_T("- %s된 폴더 수 (소스 기준) : %s"), actionLabel.c_str(), addCommas(static_cast<int64>(ctx.folderCount.load())).c_str());
 	if( nFunc == FO_MOVE )
-		_tprintf(_T("- 삭제된 폴더 수 (소스 기준) : %s\n"), addCommas(ctx.deletedFolderCount.load()).c_str());
+		LOG_INFO(_T("- 삭제된 폴더 수 (소스 기준) : %s"), addCommas(static_cast<int64>(ctx.deletedFolderCount.load())).c_str());
 
-	_tprintf(_T("- 실제 생성된 대상 폴더 수 : %s\n"), addCommas(ctx.createdFolderCount.load()).c_str());
-	_tprintf(_T("- %s된 대상 파일 수 : %s"), (nFunc == FO_MOVE) ? _T("이동") : _T("복사"), addCommas(ctx.fileSuccessCount.load()).c_str());
+	LOG_INFO(_T("- 실제 생성된 대상 폴더 수 : %s"), addCommas(static_cast<int64>(ctx.createdFolderCount.load())).c_str());
+
 	if( ctx.fileFailCount.load() > 0 )
-		_tprintf(_T("- (실패 %s)"), addCommas(ctx.fileFailCount.load()).c_str());
-	_tprintf(_T("\n\n"));
+	{
+		LOG_INFO(_T("- %s된 대상 파일 수 : %s (실패 %s)"), actionLabel.c_str(),
+			addCommas(static_cast<int64>(ctx.fileSuccessCount.load())).c_str(),
+			addCommas(static_cast<int64>(ctx.fileFailCount.load())).c_str());
+	}
+	else
+	{
+		LOG_INFO(_T("- %s된 대상 파일 수 : %s"), actionLabel.c_str(),
+			addCommas(static_cast<int64>(ctx.fileSuccessCount.load())).c_str());
+	}
 
+	if( ctx.scanErrorCount.load() > 0 )
+	{
+		LOG_WARNING(_T("- [경고] 폴더 열람 오류로 건너뛴 폴더 수 : %s (원본/복사본 개수가 다를 수 있음, 자세한 내용은 위 오류 로그 참고)"),
+			addCommas(static_cast<int64>(ctx.scanErrorCount.load())).c_str());
+	}
+
+#ifdef _WIN32
 	system("pause");
+#endif
 
 	return 0;
 }
