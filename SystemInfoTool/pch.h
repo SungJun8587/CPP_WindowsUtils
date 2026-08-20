@@ -29,22 +29,10 @@
 #include <BaseRedefineDataType.h>
 #include <BaseMacro.h>
 
-#include <Memory/RawAllocator.h>
-#include <Memory/Allocator.h>
-#include <Memory/MemoryPool.h>
-#include <Memory/Memory.h>
-#include <Memory/ObjectPool.h>
-#include <Memory/Containers.h>
-
-#include <Memory/MemBuffer.h>
-
 #include <Util/WinCharsetConv.h>
 #include <Util/EncodingConvert.h>
 #include <Util/StringUtil.h>
-#include <Util/Regular.h>
-#include <Util/BaseFile.h>
-#include <Util/EventLog.h>
-#include <BaseLinkedList.h>
+#include <Util/Log.h>
 
 #include <SystemBaseDefine.h>
 #include <OsInfo.h>

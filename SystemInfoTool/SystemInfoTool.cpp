@@ -1,4 +1,5 @@
-﻿//***************************************************************************
+﻿
+//***************************************************************************
 // SystemInfoTool.cpp : Defines the entry point for the console application.
 //
 //***************************************************************************
@@ -13,23 +14,14 @@
 #include <intrin.h>
 
 #if defined(_M_IX86)
-	#include "CpuInfo86.h"
+#include "CpuInfo86.h"
 #else
-	#include "CpuInfo64.h"
+#include "CpuInfo64.h"
 #endif
 
 using namespace std;
 
 #define VS_SEVICE_TITLE _T("winmgmt")
-
-//***************************************************************************
-//
-void Print(const TCHAR *ptszBuffer)
-{
-#ifdef _DEBUG
-	_tprintf(_T("%s\n"), ptszBuffer);
-#endif
-}
 
 //***************************************************************************
 //
@@ -39,13 +31,18 @@ int main(int argc, char* argv[])
 	_CrtSetDbgFlag(_CrtSetDbgFlag(_CRTDBG_REPORT_FLAG) | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-	setlocale(LC_ALL, "korean");
+#ifdef _WIN32
+	// 1. C 런타임 로케일 설정
+	setlocale(LC_ALL, ".UTF8");		// printf, scanf 등 C 스타일의 입출력 함수나 일부 문자열 처리 함수들이 UTF-8 문자열을 올바르게 인식하고 처리할 수 있게 함.
+
+	// 2. 콘솔 입출력 코드페이지를 UTF-8(65001)로 변경
+	SetConsoleOutputCP(CP_UTF8);	// 프로그램이 콘솔창에 텍스트를 출력할 때(std::cout, printf 등), 유니코드 문자가 깨지지 않고 올바른 모양(한글 등)으로 그려지도록 지정
+	SetConsoleCP(CP_UTF8);			// 사용자가 콘솔창에 키보드로 입력하는 텍스트(std::cin, scanf 등)를 프로그램이 UTF-8 인코딩으로 정확하게 읽어들이도록 보장
+#endif
 
 	bool	fPause = true;
-	int		i = 0;
 
 	TCHAR	tszFormat[NUMERIC_STRING_LEN];
-	TCHAR	tszBuffer[MAX_BUFFER_SIZE];
 
 	CCpuInfo			CpuInfo;
 	CBiosInfo			BiosInfo;
@@ -67,42 +64,31 @@ int main(int argc, char* argv[])
 	CJavaVMInfo		JavaVMInfo;
 	CInstallSwInfo	InstallSwInfo;
 
-	CMemBuffer<TCHAR> TCPUName;
+	SC_HANDLE	hScm = OpenSCManager(NULL, NULL, SC_MANAGER_CREATE_SERVICE);
+	SC_HANDLE	hService = OpenService(hScm, VS_SEVICE_TITLE, SC_MANAGER_ALL_ACCESS);
+	if( hService )
+	{
+		ChangeServiceConfig(hService, SERVICE_NO_CHANGE, SERVICE_AUTO_START, SERVICE_NO_CHANGE, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+		CloseServiceHandle(hService);
+	}
+	if( hScm )
+	{
+		CloseServiceHandle(hScm);
+	}
 
-	CWmi		Wmi;
-	CEventLog	EvLog;
+	// CLogManager 싱글톤 초기화
+	CLogManager::Instance().Create(_T("D:\\Log\\"));
 
-	HWINFO_RAM			*pRam = NULL;
-	HWINFO_HDDISK		*pHdDisk = NULL;
-	HWINFO_DRIVE		*pDrive = NULL;
-	HWINFO_VIDEOCARD	*pVideoCard = NULL;
-	HWINFO_NETWORKCARD	*pNetworkCard = NULL;
-	HWINFO_CDROM		*pCdrom = NULL;
-	HWINFO_MONITOR		*pMonitor = NULL;
-	INSTALL_SWINFO		*pInstallSwInfo = NULL;
+	// COM 라이브러리 초기화 - 이 스레드에서 사용하는 모든 COM/WMI 리소스는
+	// 여기서부터 아래쪽 CoUninitialize() 호출 전까지의 구간에서만 유효합니다.
+	HRESULT hrCom = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+	if( FAILED(hrCom) )
+	{
+		LOG_ERROR(_T("CoInitializeEx Failed. HRESULT: 0x%08X"), hrCom);
+		return -1;
+	}
 
-	CBaseLinkedList<HWINFO_RAM *> *psRamArray = NULL;
-	CBaseLinkedList<HWINFO_HDDISK *> *psHdDiskArray = NULL;
-	CBaseLinkedList<HWINFO_DRIVE *> *psDriveArray = NULL;
-	CBaseLinkedList<HWINFO_VIDEOCARD *> *psVideoCardArray = NULL;
-	CBaseLinkedList<HWINFO_NETWORKCARD *> *psNetworkCardArray = NULL;
-	CBaseLinkedList<HWINFO_CDROM *> *psCdromArray = NULL;
-	CBaseLinkedList<HWINFO_MONITOR *> *psMonitorArray = NULL;
-	CBaseLinkedList<INSTALL_SWINFO *> *psInstallSwInfoArray = NULL;
-
-	SC_HANDLE	hScm;
-	SC_HANDLE	hService;
-
-	hScm = OpenSCManager(NULL, NULL, SC_MANAGER_CREATE_SERVICE);
-	hService = OpenService(hScm, VS_SEVICE_TITLE, SC_MANAGER_ALL_ACCESS);
-	ChangeServiceConfig(hService, SERVICE_NO_CHANGE, SERVICE_AUTO_START, SERVICE_NO_CHANGE, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-
-	EvLog.InitForLogFile(_T("D:\\"), _T("SystemInfo"), EVENTLOG_FMT_DAILY, TEXT(","));
-
-	HRESULT hr;
-
-	// STEP 2. COM Security Level을 설정한다.
-	hr = CoInitializeSecurity(
+	HRESULT hr = CoInitializeSecurity(
 		NULL,
 		-1,                          // COM authentication
 		NULL,                        // Authentication services
@@ -116,1054 +102,473 @@ int main(int argc, char* argv[])
 
 	if( FAILED(hr) )
 	{
+		LOG_ERROR(_T("CoInitializeSecurity Failed. HRESULT: 0x%08X"), hr);
 		CoUninitialize();
-
-		return false;
+		return -1;
 	}
 
-	Wmi.Connect();
+	// CWmi는 이 중첩 스코프 안에서만 생성/사용되며, 스코프를 벗어날 때
+	// (아래쪽 CoUninitialize() 호출 전에) 소멸되어 COM이 살아있는 상태에서
+	// 안전하게 인터페이스를 Release() 합니다.
+	{
+		CWmi Wmi;
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("********************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// CWmi 연결 및 예외 처리
+		if( !Wmi.Connect() )
+		{
+			LOG_ERROR(_T("WMI Connection Failed."));
+			CoUninitialize();
+			return -1;
+		}
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* BIOS INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 1. BIOS INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("********************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* BIOS INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("********************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("********************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
+		BiosInfo.GetInformation(Wmi);
 
-	BiosInfo.GetInformation(Wmi);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS Manufacturer = %s"), BiosInfo.GetManufacturer());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS SmVersion = %s"), BiosInfo.GetSmVersion());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS Version = %s"), BiosInfo.GetVersion());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS IdentificationCode = %s"), BiosInfo.GetIdentificationCode());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS SerialNumber = %s"), BiosInfo.GetSerialNumber());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BIOS ReleaseDate = %s"), BiosInfo.GetReleaseDate());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("BIOS Manufacturer = %s"), BiosInfo.GetManufacturer());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("BIOS SmVersion = %s"), BiosInfo.GetSmVersion());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("BIOS Version = %s"), BiosInfo.GetVersion());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("BIOS IdentificationCode = %s"), BiosInfo.GetIdentificationCode());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("BIOS SerialNumber = %s"), BiosInfo.GetSerialNumber());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("BIOS ReleaseDate = %s\n"), BiosInfo.GetReleaseDate());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 2. PROCESSOR INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*************************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* PROCESSOR INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*************************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* PROCESSOR INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		CpuInfo.GetInformation();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
+		TCHAR tszBuffer1[3] = { ' ', ' ', '\0' };
 
-	CpuInfo.GetInformation();
+		_tstring strCPUName = CpuInfo.GetProcessorName();
+		const _tstring strTarget = tszBuffer1;
+		const _tstring strReplace = _T("");
 
-	TCHAR tszBuffer1[3];
+		// 문자열 내 tszBuffer1 검색 및 제거(빈 문자열로 치환)
+		if( !strTarget.empty() )
+		{
+			size_t nPos = 0;
+			while( (nPos = strCPUName.find(strTarget, nPos)) != _tstring::npos )
+			{
+				strCPUName.replace(nPos, strTarget.length(), strReplace);
+				nPos += strReplace.length();
+			}
+		}
 
-	tszBuffer1[0] = ' ';
-	tszBuffer1[1] = ' ';
-	tszBuffer1[2] = '\0';
-
-	StrReplace(TCPUName, CpuInfo.GetProcessorName(), tszBuffer1, _T(""));
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU Name = %s"), TCPUName.GetBuffer());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU VendorName = %s"), CpuInfo.GetVendorName());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU Speed = %d MHz"), CpuInfo.GetSpeedMHz());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Number Of Processes = %d"), CpuInfo.GetNumberOfProcessors());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU Family = %d"), CpuInfo.GetCPUFamily());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU Model = %d"), CpuInfo.GetCPUModel());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CPU Stepping = %d"), CpuInfo.GetCPUStepping());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU Name = %s"), strCPUName.c_str());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU VendorName = %s"), CpuInfo.GetVendorName());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU Speed = %d MHz"), CpuInfo.GetSpeedMHz());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Number Of Processes = %d"), CpuInfo.GetNumberOfProcessors());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU Family = %d"), CpuInfo.GetCPUFamily());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU Model = %d"), CpuInfo.GetCPUModel());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU Stepping = %d\n"), CpuInfo.GetCPUStepping());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 3. MAINBOARD INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*************************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* MAINBOARD INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*************************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* MAINBOARD INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		MainBoardInfo.GetInformation(Wmi);
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
-
-	MainBoardInfo.GetInformation(Wmi);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MAINBOARD Product = %s"), MainBoardInfo.GetProduct());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MAINBOARD SerialNumber = %s"), MainBoardInfo.GetSerialNumber());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MAINBOARD Manufacturer = %s"), MainBoardInfo.GetManufacturer());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MAINBOARD Description = %s"), MainBoardInfo.GetDescription());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("MAINBOARD Product = %s"), MainBoardInfo.GetProduct());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("MAINBOARD SerialNumber = %s"), MainBoardInfo.GetSerialNumber());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("MAINBOARD Manufacturer = %s"), MainBoardInfo.GetManufacturer());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("MAINBOARD Description = %s\n"), MainBoardInfo.GetDescription());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 4. MEMORY INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("**********************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* MEMORY INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("**********************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* MEMORY INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		MemoryInfo.GetInformation(Wmi);
+		const std::vector<HWINFO_RAM*>* psRamVector = MemoryInfo.GetRamArray();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("--------- RAM INFORMATION ---------"));
+		if( psRamVector )
+		{
+			for( size_t i = 0; i < psRamVector->size(); ++i )
+			{
+				HWINFO_RAM* pRam = (*psRamVector)[i];
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("RAM[%zud]"), i + 1);
 
-	MemoryInfo.GetInformation(Wmi);
-	psRamArray = MemoryInfo.GetRamArray();
+				ChangeDataFormat(pRam->m_nCapacity, tszFormat);
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("--------- RAM INFORMATION ---------"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Memory BankLabel = %s"), pRam->m_tszBankLabel);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Memory Name = %s"), pRam->m_tszName);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Memory DeviceLocator = %s"), pRam->m_tszDeviceLocator);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Memory Size = %s"), tszFormat);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Memory FormFactor = %d[ %s ]"), pRam->m_dwFormFactor, pRam->m_tszFormFactorDesc);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Memory MemoryType = %d[ %s ]"), pRam->m_dwMemoryType, pRam->m_tszMemoryTypeDesc);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Memory Speed = %u MT/s\n"), pRam->m_dwSpeed);
+			}
+		}
 
-	for( i = 0; i < psRamArray->GetCount(); i++ )
-	{
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("RAM[%d]"), i + 1);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("-------- MEMORY INFORMATION --------"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Total RAM Count = %d"), MemoryInfo.GetRamCount());
 
-		pRam = psRamArray->At(i);
+		ChangeDataFormat(MemoryInfo.GetTotalMemSize(), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Total Memory Size = %s"), tszFormat);
 
-		ChangeDataFormat(pRam->m_nCapacity, tszFormat);
+		ChangeDataFormat(MemoryInfo.GetPhysicalMemSize(), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Physical Memory Size = %s"), tszFormat);
 
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory BankLabel = %s"), pRam->m_tszBankLabel);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
+		ChangeDataFormat(MemoryInfo.GetUseMemSize(), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Used Memory Size = %s"), tszFormat);
 
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory Name = %s"), pRam->m_tszName);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
+		ChangeDataFormat(MemoryInfo.GetTotalVirtualMemSize(), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Total Virtual Memory Size = %s"), tszFormat);
 
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory DeviceLocator = %s"), pRam->m_tszDeviceLocator);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
+		ChangeDataFormat(MemoryInfo.GetFreeVirtualMemSize(), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Free Virtual Memory Size = %s"), tszFormat);
 
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory Size = %s"), tszFormat);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
+		ChangeDataFormat(MemoryInfo.GetTotalPageFile(), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Total PageFile Size = %s"), tszFormat);
 
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory FormFactor = %d[ %s ]"), pRam->m_dwFormFactor, pRam->m_tszFormFactorDesc);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory MemoryType = %d[ %s ]"), pRam->m_dwMemoryType, pRam->m_tszMemoryTypeDesc);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Memory Speed = %d"), pRam->m_dwSpeed);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		EvLog.EventLog(_T(""), false);
-
-		Print(_T(""));
-	}
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("-------- MEMORY INFORMATION --------"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total RAM Count = %d"), MemoryInfo.GetRamCount());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	ChangeDataFormat(MemoryInfo.GetTotalMemSize(), tszFormat);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total Memory Size = %s"), tszFormat);
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	ChangeDataFormat(MemoryInfo.GetPhysicalMemSize(), tszFormat);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Physical Memory Size = %s"), tszFormat);
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	ChangeDataFormat(MemoryInfo.GetUseMemSize(), tszFormat);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Used Memory Size = %s"), tszFormat);
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	ChangeDataFormat(MemoryInfo.GetTotalVirtualMemSize(), tszFormat);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total Virtual Memory Size = %s"), tszFormat);
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	ChangeDataFormat(MemoryInfo.GetFreeVirtualMemSize(), tszFormat);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Free Virtual Memory Size = %s"), tszFormat);
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	ChangeDataFormat(MemoryInfo.GetTotalPageFile(), tszFormat);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total PageFile Size = %s"), tszFormat);
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	ChangeDataFormat(MemoryInfo.GetFreePageFile(), tszFormat);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Free PageFile Size = %s"), tszFormat);
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		ChangeDataFormat(MemoryInfo.GetFreePageFile(), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Free PageFile Size = %s\n"), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 5. DRIVES INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("**********************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* DRIVES INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("**********************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* DRIVES INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		HdDiskInfo.GetInformation(Wmi);
+		const std::vector<HWINFO_HDDISK*>* psHdDiskVector = HdDiskInfo.GetHdDiskArray();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
+		if( psHdDiskVector )
+		{
+			for( size_t i = 0; i < psHdDiskVector->size(); ++i )
+			{
+				HWINFO_HDDISK* pHdDisk = (*psHdDiskVector)[i];
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("HDDISK[%zud]"), i + 1);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] HdDisk Model = %s"), pHdDisk->m_tszModel);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] HdDisk Name = %s"), pHdDisk->m_tszName);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] HdDisk Manufacturer = %s"), pHdDisk->m_tszManufacturer);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] HdDisk Description = %s"), pHdDisk->m_tszDescription);
 
-	HdDiskInfo.GetInformation(Wmi);
-	psHdDiskArray = HdDiskInfo.GetHdDiskArray();
-
-	for( i = 0; i < psHdDiskArray->GetCount(); i++ )
-	{
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("HDDISK[%d]"), i + 1);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		pHdDisk = psHdDiskArray->At(i);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Model = %s"), pHdDisk->m_tszModel);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Name = %s"), pHdDisk->m_tszName);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Manufacturer = %s"), pHdDisk->m_tszManufacturer);
-		EvLog.EventLog(tszBuffer, false);
- 		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk Description = %s"), pHdDisk->m_tszDescription);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		ChangeDataFormat(pHdDisk->m_nTotalSize, tszFormat);
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] HdDisk TotalSize = %s"), tszFormat);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		EvLog.EventLog(_T(""), false);
-
-		Print(_T(""));
-	}
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+				ChangeDataFormat(pHdDisk->m_nTotalSize, tszFormat);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] HdDisk TotalSize = %s\n"), tszFormat);
+			}
+		}
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("****************************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 6. LOGICAL DISK INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("****************************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* LOGICAL DISK INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("****************************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* LOGICAL DISK INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		DriveInfo.GetInformation(Wmi);
+		const std::vector<HWINFO_DRIVE*>* psDriveVector = DriveInfo.GetDriveArray();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("****************************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
+		if( psDriveVector )
+		{
+			for( size_t i = 0; i < psDriveVector->size(); ++i )
+			{
+				HWINFO_DRIVE* pDrive = (*psDriveVector)[i];
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("DRIVE[%zud]"), i + 1);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Drive Name = %s"), pDrive->m_tszName);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Drive FileSystem = %s"), pDrive->m_tszFileSystem);
 
-	DriveInfo.GetInformation(Wmi);
-	psDriveArray = DriveInfo.GetDriveArray();
+				ChangeDataFormat(pDrive->m_nTotalSpace, tszFormat);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Drive TotalSpace = %s"), tszFormat);
 
-	for( i = 0; i < psDriveArray->GetCount(); i++ )
-	{
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DRIVE[%d]"), i + 1);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
+				ChangeDataFormat(pDrive->m_nFreeSpace, tszFormat);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Drive FreeSpace = %s"), tszFormat);
 
-		pDrive = psDriveArray->At(i);
+				ChangeDataFormat(pDrive->m_nTotalSpace - pDrive->m_nFreeSpace, tszFormat);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Drive UsedSpace = %s\n"), tszFormat);
+			}
+		}
 
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Drive Name = %s"), pDrive->m_tszName);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("-------- DRIVE INFORMATION --------"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Total Drive Count = %d"), DriveInfo.GetDriveCount());
 
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Drive FileSystem = %s"), pDrive->m_tszFileSystem);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
+		ChangeDataFormat(DriveInfo.GetTotalSpaceSize(), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Total Space Size = %s"), tszFormat);
 
-		ChangeDataFormat(pDrive->m_nTotalSpace, tszFormat);
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Drive TotalSpace = %s"), tszFormat);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
+		ChangeDataFormat(DriveInfo.GetFreeSpaceSize(), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Free Space Size = %s"), tszFormat);
 
-		ChangeDataFormat(pDrive->m_nFreeSpace, tszFormat);
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Drive FreeSpace = %s"), tszFormat);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		ChangeDataFormat(pDrive->m_nTotalSpace - pDrive->m_nFreeSpace, tszFormat);
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Drive UsedSpace = %s"), tszFormat);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		EvLog.EventLog(_T(""), false);
-
-		Print(_T(""));
-	}
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("-------- DRIVE INFORMATION --------"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total Drive Count = %d"), DriveInfo.GetDriveCount());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	ChangeDataFormat(DriveInfo.GetTotalSpaceSize(), tszFormat);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Total Space Size = %s"), tszFormat);
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	ChangeDataFormat(DriveInfo.GetFreeSpaceSize(), tszFormat);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Free Space Size = %s"), tszFormat);
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	ChangeDataFormat(DriveInfo.GetUsedSpaceSize(), tszFormat);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Used Space Size = %s"), tszFormat);
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		ChangeDataFormat(DriveInfo.GetUsedSpaceSize(), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Used Space Size = %s\n"), tszFormat);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 7. SOUNDCARD INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*************************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* SOUNDCARD INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*************************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* SOUNDCARD INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		SoundCardInfo.GetInformation();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*************************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
-
-	SoundCardInfo.GetInformation();
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("HasVolumeControl = %d"), SoundCardInfo.HasVolCtrl());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("HasSeparateRLVolCtrl = %d"), SoundCardInfo.HasSeparateLRVolCtrl());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("ProductName = %s"), SoundCardInfo.GetProductName());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CompanyName = %s"), SoundCardInfo.GetCompanyName());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("HasVolumeControl = %d"), SoundCardInfo.HasVolCtrl());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("HasSeparateRLVolCtrl = %d"), SoundCardInfo.HasSeparateLRVolCtrl());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("ProductName = %s"), SoundCardInfo.GetProductName());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CompanyName = %s\n"), SoundCardInfo.GetCompanyName());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 8. VIDEO INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*********************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* VIDEO INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*********************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* VIDEO INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		VideoCardInfo.GetInformation();
+		const std::vector<HWINFO_VIDEOCARD*>* psVideoCardVector = VideoCardInfo.GetVideoCardArray();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
-
-	VideoCardInfo.GetInformation();
-	psVideoCardArray = VideoCardInfo.GetVideoCardArray();
-
-	for( i = 0; i < psVideoCardArray->GetCount(); i++ )
-	{
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("VIDEO[%d]"), i + 1);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		pVideoCard = psVideoCardArray->At(i);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Description = %s"), pVideoCard->m_tszDescription);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("AdapterString = %s"), pVideoCard->m_tszAdapterString);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("ChipType = %s"), pVideoCard->m_tszChipType);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DacType = %s"), pVideoCard->m_tszDacType);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DisplayDrivers = %s"), pVideoCard->m_tszDisplayDrivers);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MemorySize = %d"), pVideoCard->m_lMemorySize);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		EvLog.EventLog(_T(""), false);
-
-		Print(_T(""));
-	}
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		if( psVideoCardVector )
+		{
+			for( size_t i = 0; i < psVideoCardVector->size(); ++i )
+			{
+				HWINFO_VIDEOCARD* pVideoCard = (*psVideoCardVector)[i];
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("VIDEO[%zud]"), i + 1);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Description = %s"), pVideoCard->m_tszDescription);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("AdapterString = %s"), pVideoCard->m_tszAdapterString);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("ChipType = %s"), pVideoCard->m_tszChipType);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("DacType = %s"), pVideoCard->m_tszDacType);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("DisplayDrivers = %s"), pVideoCard->m_tszDisplayDrivers);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("MemorySize = %d\n"), pVideoCard->m_lMemorySize);
+			}
+		}
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***************************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 9. NETWORKCARD INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("***************************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* NETWORKCARD INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("***************************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* NETWORKCARD INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		NetworkCardInfo.GetInformation(Wmi);
+		const std::vector<HWINFO_NETWORKCARD*>* psNetworkCardVector = NetworkCardInfo.GetNetworkCardArray();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***************************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
-
-	NetworkCardInfo.GetInformation(Wmi);
-	psNetworkCardArray = NetworkCardInfo.GetNetworkCardArray();
-
-	for( i = 0; i < psNetworkCardArray->GetCount(); i++ )
-	{
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("NETWORKCARD[%d]"), i + 1);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		pNetworkCard = psNetworkCardArray->At(i);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] NetworkCard Description = %s"), pNetworkCard->m_tszDescription);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		EvLog.EventLog(_T(""), false);
-
-		Print(_T(""));
-	}
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		if( psNetworkCardVector )
+		{
+			for( size_t i = 0; i < psNetworkCardVector->size(); ++i )
+			{
+				HWINFO_NETWORKCARD* pNetworkCard = (*psNetworkCardVector)[i];
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("NETWORKCARD[%zud]"), i + 1);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] NetworkCard Description = %s\n"), pNetworkCard->m_tszDescription);
+			}
+		}
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 10. CDROM INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*********************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* CDROM INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*********************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* CDROM INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		CdromInfo.GetInformation(Wmi);
+		const std::vector<HWINFO_CDROM*>* psCdromVector = CdromInfo.GetCdromArray();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
-
-	CdromInfo.GetInformation(Wmi);
-	psCdromArray = CdromInfo.GetCdromArray();
-
-	for( i = 0; i < psCdromArray->GetCount(); i++ )
-	{
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("CDROM[%d]"), i + 1);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		pCdrom = psCdromArray->At(i);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Cdrom Name = %s"), pCdrom->m_tszName);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Cdrom Manufacturer = %s"), pCdrom->m_tszManufacturer);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Cdrom Description = %s"), pCdrom->m_tszDescription);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		EvLog.EventLog(_T(""), false);
-
-		Print(_T(""));
-	}
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		if( psCdromVector )
+		{
+			for( size_t i = 0; i < psCdromVector->size(); ++i )
+			{
+				HWINFO_CDROM* pCdrom = (*psCdromVector)[i];
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CDROM[%zud]"), i + 1);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Cdrom Name = %s"), pCdrom->m_tszName);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Cdrom Manufacturer = %s"), pCdrom->m_tszManufacturer);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Cdrom Description = %s\n"), pCdrom->m_tszDescription);
+			}
+		}
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("************************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 11. KEYBOARD INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("************************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* KEYBOARD INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("************************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* KEYBOARD INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		KeyBoardInfo.GetInformation(Wmi);
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("************************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
-
-	KeyBoardInfo.GetInformation(Wmi);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("KeyBoard Description = %s"), KeyBoardInfo.GetDescription());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("KeyBoard Type = %s"), KeyBoardInfo.GetType());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("KeyBoard Description = %s"), KeyBoardInfo.GetDescription());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("KeyBoard Type = %s\n"), KeyBoardInfo.GetType());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 12. MOUSE INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*********************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* MOUSE INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*********************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* MOUSE INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		MouseInfo.GetInformation(Wmi);
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("*********************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
-
-	MouseInfo.GetInformation(Wmi);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Mouse Name = %s"), MouseInfo.GetName());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Mouse Manufacturer = %s"), MouseInfo.GetManufacturer());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Mouse Description = %s"), MouseInfo.GetDescription());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Mouse Name = %s"), MouseInfo.GetName());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Mouse Manufacturer = %s"), MouseInfo.GetManufacturer());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Mouse Description = %s\n"), MouseInfo.GetDescription());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***********************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 13. MONITOR INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("***********************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* MONITOR INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("***********************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* MONITOR INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		MonitorInfo.GetInformation(Wmi);
+		const std::vector<HWINFO_MONITOR*>* psMonitorVector = MonitorInfo.GetMonitorArray();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***********************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
-
-	MonitorInfo.GetInformation(Wmi);
-	psMonitorArray = MonitorInfo.GetMonitorArray();
-
-	for( i = 0; i < psMonitorArray->GetCount(); i++ )
-	{
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MONITOR[%d]"), i + 1);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		pMonitor = psMonitorArray->At(i);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Monitor Manufacturer = %s"), pMonitor->m_tszManufacturer);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[#] Monitor Description = %s"), pMonitor->m_tszDescription);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-
-		EvLog.EventLog(_T(""), false);
-
-		Print(_T(""));
-	}
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		if( psMonitorVector )
+		{
+			for( size_t i = 0; i < psMonitorVector->size(); ++i )
+			{
+				HWINFO_MONITOR* pMonitor = (*psMonitorVector)[i];
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("MONITOR[%zud]"), i + 1);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Monitor Manufacturer = %s"), pMonitor->m_tszManufacturer);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[#] Monitor Description = %s\n"), pMonitor->m_tszDescription);
+			}
+		}
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("******************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 14. OS INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("******************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* OS INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("******************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* OS INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Description = %s"), OsInfo.GetDescription());
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("******************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
+		if( OsInfo.Is32bitPlatform() )
+			LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Bit Platform = 32Bit Platform"));
+		else if( OsInfo.Is64bitPlatform() )
+			LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Bit Platform = 64Bit Platform"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Description = %s"), OsInfo.GetDescription());
-
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	if( OsInfo.Is32bitPlatform() )
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Bit Platform = 32Bit Platform"));
-	else if( OsInfo.Is64bitPlatform() )
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Bit Platform = 64Bit Platform"));
-
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("BuildNumber = %d"), OsInfo.GetBuildNumber());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MajorVersion = %d"), OsInfo.GetMajorVersion());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("MinorVersion = %d"), OsInfo.GetMinorVersion());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("ServicePack = %s"), OsInfo.GetServicePack());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("BuildNumber = %d"), OsInfo.GetBuildNumber());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("MajorVersion = %d"), OsInfo.GetMajorVersion());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("MinorVersion = %d"), OsInfo.GetMinorVersion());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("ServicePack = %s\n"), OsInfo.GetServicePack());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("******************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 15. IE INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("******************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* IE INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("******************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* IE INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		IeInfo.GetInformation();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("******************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
-
-	IeInfo.GetInformation();
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("IE Build = %s"), IeInfo.GetBuild());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("IE Version = %s"), IeInfo.GetVersion());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("IE Build = %s"), IeInfo.GetBuild());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("IE Version = %s\n"), IeInfo.GetVersion());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***********************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 16. DIRECTX INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("***********************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* DIRECTX INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("***********************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* DIRECTX INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		DirectXInfo.GetInformation();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("***********************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
-
-	DirectXInfo.GetInformation();
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DirectX Version = %s"), DirectXInfo.GetVersion());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DirectX Install Version = %s"), DirectXInfo.GetInstallVersion());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("DirectX Description = %s"), DirectXInfo.GetDescription());
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("DirectX Version = %s"), DirectXInfo.GetVersion());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("DirectX Install Version = %s"), DirectXInfo.GetInstallVersion());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("DirectX Description = %s\n"), DirectXInfo.GetDescription());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		// 17. JAVAVM INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("**********************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* JAVAVM INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("**********************\n"));
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* JAVAVM INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		JavaVMInfo.GetInformation();
 
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("**********************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
+		if( JavaVMInfo.IsJVM() == 0 )
+			LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Not Run Java Virtual Machine"));
+		else if( JavaVMInfo.IsJVM() == 1 )
+			LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Run MS Java Virtual Machine"));
+		else if( JavaVMInfo.IsJVM() == 2 )
+			LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Run SUN Java Virtual Machine"));
+		else if( JavaVMInfo.IsJVM() == 3 )
+			LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Run MS, SUN Java Virtual Machine"));
 
-	JavaVMInfo.GetInformation();
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("\n---------------------------------------------------------\n"));
 
-	if( JavaVMInfo.IsJVM() == 0 )
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Not Run Java Virtual Machine"));
-	else if( JavaVMInfo.IsJVM() == 1 )
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Run MS Java Virtual Machine"));
-	else if( JavaVMInfo.IsJVM() == 2 )
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Run SUN Java Virtual Machine"));
-	else if( JavaVMInfo.IsJVM() == 3 )
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("Run MS, SUN Java Virtual Machine"));
+		// 18. INSTALL SOFTWARE INFORMATION
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("********************************"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* INSTALL SOFTWARE INFORMATION *"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("********************************\n"));
 
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
+		InstallSwInfo.GetInformation();
+		const std::vector<INSTALL_SWINFO*>* psInstallSwInfoVector = InstallSwInfo.GetInstallSwInfoArray();
 
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("********************************"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("* INSTALL SOFTWARE INFORMATION *"));
-	EvLog.EventLog(tszBuffer, false);
-	Print(tszBuffer);
-
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("********************************"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(tszBuffer);
-	Print(_T(""));
-
-	InstallSwInfo.GetInformation();
-	psInstallSwInfoArray = InstallSwInfo.GetInstallSwInfoArray();
-
-	for( i = 0; i < psInstallSwInfoArray->GetCount(); i++ )
-	{
-		pInstallSwInfo = psInstallSwInfoArray->At(i);
-
-		_stprintf_s(tszBuffer, _countof(tszBuffer), _T("[%d]. %s"), i + 1, pInstallSwInfo->m_tszDisplayName);
-		EvLog.EventLog(tszBuffer, false);
-		Print(tszBuffer);
-	}
-
-	EvLog.EventLog(_T(""), false);
-	_stprintf_s(tszBuffer, _countof(tszBuffer), _T("---------------------------------------------------------"));
-	EvLog.EventLog(tszBuffer, false);
-	EvLog.EventLog(_T(""), false);
-	Print(_T(""));
-	Print(tszBuffer);
-	Print(_T(""));
+		if( psInstallSwInfoVector )
+		{
+			for( size_t i = 0; i < psInstallSwInfoVector->size(); ++i )
+			{
+				INSTALL_SWINFO* pInstallSwInfo = (*psInstallSwInfoVector)[i];
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("[%zud]. %s"), i + 1, pInstallSwInfo->m_tszDisplayName);
+			}
+		}
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("\n---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-	if( fPause )
-	{
-		system("pause");
-		system("cls");
-	}
+		if( fPause ) { system("pause"); system("cls"); }
 #endif
 
-	CloseServiceHandle(hService);
-	CloseServiceHandle(hScm);
+	} // Wmi 소멸 (COM이 아직 살아있는 상태에서 안전하게 Release())
+
+	CoUninitialize();
 
 	return 0;
 }
