@@ -35,6 +35,8 @@
   <ImportGroup Label="ExtensionSettings">
     <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
   </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
@@ -47,7 +49,7 @@
     <OutDir>$(SolutionDir)Bin\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>Bin\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)64D</TargetName>
-    <IncludePath>K:\GitHub\CPP\Library\UtilCore;K:\GitHub\CPP\Library\SystemCore;K:\GitHub\CPP\Library\DataStructures;$(ProjectDir);$(IncludePath)</IncludePath>
+    <IncludePath>K:\GitHub\CPP\Library\UtilCore;$(ProjectDir);$(IncludePath)</IncludePath>
     <ReferencePath>$(ReferencePath)</ReferencePath>
     <LibraryPath>K:\GitHub\CPP\Library\ExternalLib\Bin\$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
@@ -56,7 +58,7 @@
     <OutDir>$(SolutionDir)Bin\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>Bin\$(Platform)\$(Configuration)\</IntDir>
     <TargetName>$(ProjectName)64</TargetName>
-    <IncludePath>K:\GitHub\CPP\Library\UtilCore;K:\GitHub\CPP\Library\SystemCore;K:\GitHub\CPP\Library\DataStructures;$(ProjectDir);$(IncludePath)</IncludePath>
+    <IncludePath>K:\GitHub\CPP\Library\UtilCore;$(ProjectDir);$(IncludePath)</IncludePath>
     <ReferencePath>$(ReferencePath)</ReferencePath>
     <LibraryPath>K:\GitHub\CPP\Library\ExternalLib\Bin\$(Platform)\$(Configuration);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
@@ -69,6 +71,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -103,11 +106,11 @@
     </MASM>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Library\SystemCore\CpuInfo.cpp" />
-    <ClCompile Include="..\..\Library\SystemCore\HardwareInfo.cpp" />
-    <ClCompile Include="..\..\Library\SystemCore\OsInfo.cpp" />
-    <ClCompile Include="..\..\Library\SystemCore\SoftwareInfo.cpp" />
-    <ClCompile Include="..\..\Library\SystemCore\Wmi.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\System\CpuInfo.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\System\HardwareInfo.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\System\OsInfo.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\System\SoftwareInfo.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\System\Wmi.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\EncodingConvert.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\Log.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\StringUtil.cpp" />
@@ -119,13 +122,16 @@
     <ClCompile Include="SystemInfoTool.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\Library\SystemCore\CpuInfo.h" />
-    <ClInclude Include="..\..\Library\SystemCore\CpuInfo64.h" />
-    <ClInclude Include="..\..\Library\SystemCore\HardwareInfo.h" />
-    <ClInclude Include="..\..\Library\SystemCore\OsInfo.h" />
-    <ClInclude Include="..\..\Library\SystemCore\SoftwareInfo.h" />
-    <ClInclude Include="..\..\Library\SystemCore\SystemBaseDefine.h" />
-    <ClInclude Include="..\..\Library\SystemCore\Wmi.h" />
+    <ClInclude Include="..\..\Library\UtilCore\BaseDefine.h" />
+    <ClInclude Include="..\..\Library\UtilCore\BaseMacro.h" />
+    <ClInclude Include="..\..\Library\UtilCore\BaseRedefineDataType.h" />
+    <ClInclude Include="..\..\Library\UtilCore\System\CpuInfo.h" />
+    <ClInclude Include="..\..\Library\UtilCore\System\HardwareInfo.h" />
+    <ClInclude Include="..\..\Library\UtilCore\System\OsInfo.h" />
+    <ClInclude Include="..\..\Library\UtilCore\System\SoftwareInfo.h" />
+    <ClInclude Include="..\..\Library\UtilCore\System\SystemBaseDefine.h" />
+    <ClInclude Include="..\..\Library\UtilCore\System\Wmi.h" />
+    <ClInclude Include="..\..\Library\UtilCore\Util\ConsoleUtil.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\EncodingConvert.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\Log.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\StringUtil.h" />
@@ -133,8 +139,11 @@
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="..\..\Library\SystemCore\CpuInfo64.asm">
-      <FileType>Document</FileType>
+    <MASM Include="..\..\Library\UtilCore\System\Asm\CpuInfo86.asm">
+      <ExcludedFromBuild Condition="'$(Platform)'=='x64'">true</ExcludedFromBuild>
+    </MASM>
+    <MASM Include="..\..\Library\UtilCore\System\Asm\CpuInfo64.asm">
+      <ExcludedFromBuild Condition="'$(Platform)'=='Win32'">true</ExcludedFromBuild>
     </MASM>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

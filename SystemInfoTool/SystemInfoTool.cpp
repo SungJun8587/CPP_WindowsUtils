@@ -13,15 +13,22 @@
 #include <string>
 #include <intrin.h>
 
-#if defined(_M_IX86)
-#include "CpuInfo86.h"
-#else
-#include "CpuInfo64.h"
-#endif
-
-using namespace std;
-
 #define VS_SEVICE_TITLE _T("winmgmt")
+
+// [수정] ClearConsoleScreen()/PauseConsole()/InitUtf8Console()은
+// Util/ConsoleUtil.h(pch.h가 include)로 이전되어 이 파일에서는 더 이상
+// 직접 정의하지 않습니다. 이유는 다음과 같습니다.
+//   1. 재사용성
+//      1-1. 이 세 함수는 콘솔을 다루는 다른 도구(Wmi 기반 툴 등)에서도
+//           똑같이 필요할 가능성이 높은 범용 유틸리티입니다.
+//      1-2. 이 파일 안에 static으로 가둬두면 다른 .cpp에서 동일한 코드를
+//           또 작성해야 해서 중복이 발생합니다.
+//   2. 매크로 대신 함수로 통일
+//      2-1. 기존 InitUtf8Console()은 BaseMacro.h의 매크로였는데, 함수로
+//           옮기면서 ClearConsoleScreen()/PauseConsole()과 동일한 방식으로
+//           통일했습니다(자세한 이유는 Util/ConsoleUtil.h 상단 주석 참고).
+//      2-2. <conio.h> include도 ConsoleUtil.h로 옮겨져 이 파일에서는
+//           필요 없어졌습니다.
 
 //***************************************************************************
 //
@@ -31,16 +38,7 @@ int main(int argc, char* argv[])
 	_CrtSetDbgFlag(_CrtSetDbgFlag(_CRTDBG_REPORT_FLAG) | _CRTDBG_LEAK_CHECK_DF);
 #endif
 
-#ifdef _WIN32
-	// 1. C 런타임 로케일 설정
-	setlocale(LC_ALL, ".UTF8");		// printf, scanf 등 C 스타일의 입출력 함수나 일부 문자열 처리 함수들이 UTF-8 문자열을 올바르게 인식하고 처리할 수 있게 함.
-
-	// 2. 콘솔 입출력 코드페이지를 UTF-8(65001)로 변경
-	SetConsoleOutputCP(CP_UTF8);	// 프로그램이 콘솔창에 텍스트를 출력할 때(std::cout, printf 등), 유니코드 문자가 깨지지 않고 올바른 모양(한글 등)으로 그려지도록 지정
-	SetConsoleCP(CP_UTF8);			// 사용자가 콘솔창에 키보드로 입력하는 텍스트(std::cin, scanf 등)를 프로그램이 UTF-8 인코딩으로 정확하게 읽어들이도록 보장
-#endif
-
-	bool	fPause = true;
+	InitUtf8Console();
 
 	TCHAR	tszFormat[NUMERIC_STRING_LEN];
 
@@ -76,8 +74,31 @@ int main(int argc, char* argv[])
 		CloseServiceHandle(hScm);
 	}
 
-	// CLogManager 싱글톤 초기화
-	CLogManager::Instance().Create(_T("D:\\Log\\"));
+	// EXE가 위치한 디렉터리를 구해 그 아래에 "Log\" 경로를 만듭니다.
+	// [주의] CLog::Write()는 대상 디렉터리를 자동 생성하지 않고, fopen이 실패하면
+	// (fp == 0x00) 아무 에러 표시 없이 그냥 리턴합니다 — 즉 폴더가 없으면 로그가
+	// "조용히" 전부 유실됩니다. 그래서 CreateDirectory()를 반드시 먼저 호출해야 합니다.
+	TCHAR tszExePath[MAX_PATH] = { 0, };
+	DWORD dwLen = GetModuleFileName(NULL, tszExePath, MAX_PATH);
+	if( dwLen == 0 || dwLen == MAX_PATH )
+	{
+		// 조회 실패 또는 경로가 MAX_PATH를 넘어 잘린 경우: 현재 작업 디렉터리로 대체
+		_tcscpy_s(tszExePath, MAX_PATH, _T(".\\"));
+	}
+
+	_tstring strExePath = tszExePath;
+	size_t nPos = strExePath.find_last_of(_T("\\/"));
+	_tstring strExeDir = (nPos != _tstring::npos) ? strExePath.substr(0, nPos + 1) : _T(".\\");
+
+	_tstring strLogPath = strExeDir + _T("Log\\");
+
+	CreateDirectory(strLogPath.c_str(), NULL);
+
+	// CLog::_tszDirectory가 TCHAR[DIRECTORY_STRLEN](=256) 고정 버퍼이고 내부에서
+	// _tcsncpy_s(..., _TRUNCATE)로 안전하게 잘라 복사하므로, 여기서 c_str()를 그대로
+	// 넘겨도 오버플로우는 없습니다. 다만 strLogPath가 256자를 넘으면 잘린 채로
+	// 저장되어 의도한 경로와 달라질 수 있습니다(경로가 극단적으로 깊은 경우에만 해당).
+	CLogManager::Instance().Create(strLogPath.c_str());
 
 	// COM 라이브러리 초기화 - 이 스레드에서 사용하는 모든 COM/WMI 리소스는
 	// 여기서부터 아래쪽 CoUninitialize() 호출 전까지의 구간에서만 유효합니다.
@@ -137,7 +158,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 2. PROCESSOR INFORMATION
@@ -164,17 +185,21 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU Name = %s"), strCPUName.c_str());
-		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU VendorName = %s"), CpuInfo.GetVendorName());
-		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU Speed = %d MHz"), CpuInfo.GetSpeedMHz());
-		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Number Of Processes = %d"), CpuInfo.GetNumberOfProcessors());
-		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU Family = %d"), CpuInfo.GetCPUFamily());
-		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU Model = %d"), CpuInfo.GetCPUModel());
-		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CPU Stepping = %d\n"), CpuInfo.GetCPUStepping());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Vendor Name = %s"), CpuInfo.GetVendorName());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Processor Name = %s"), strCPUName.c_str());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Speed (MHz) = %d MHz"), CpuInfo.GetSpeedMHz());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Processors Count = %d"), CpuInfo.GetNumberOfProcessors());
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Signature Info = Family %d, Model %d, Stepping %d"), CpuInfo.GetCPUFamily(), CpuInfo.GetCPUModel(), CpuInfo.GetCPUStepping());
+
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Instruction Set Flags:"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("    * MMX = %s"), CpuInfo.IsMMXSupported() ? _T("Supported") : _T("Not Supported"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("    * SSE = %s"), CpuInfo.IsSSESupported() ? _T("Supported") : _T("Not Supported"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("    * SSE2 = %s"), CpuInfo.IsSSE2Supported() ? _T("Supported") : _T("Not Supported"));
+		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("    * 3DNow! = %s\n"), CpuInfo.Is3DNowSupported() ? _T("Supported") : _T("Not Supported"));
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 3. MAINBOARD INFORMATION
@@ -191,7 +216,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 4. MEMORY INFORMATION
@@ -248,7 +273,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 5. DRIVES INFORMATION
@@ -277,7 +302,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 6. LOGICAL DISK INFORMATION
@@ -322,7 +347,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 7. SOUNDCARD INFORMATION
@@ -339,7 +364,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 8. VIDEO INFORMATION
@@ -367,7 +392,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 9. NETWORKCARD INFORMATION
@@ -390,7 +415,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 10. CDROM INFORMATION
@@ -415,7 +440,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 11. KEYBOARD INFORMATION
@@ -430,7 +455,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 12. MOUSE INFORMATION
@@ -446,7 +471,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 13. MONITOR INFORMATION
@@ -470,13 +495,15 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 14. OS INFORMATION
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("******************"));
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("* OS INFORMATION *"));
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("******************\n"));
+
+		OsInfo.GetInformation();
 
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Description = %s"), OsInfo.GetDescription());
 
@@ -492,7 +519,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 15. IE INFORMATION
@@ -507,7 +534,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 16. DIRECTX INFORMATION
@@ -523,7 +550,7 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 		// 17. JAVAVM INFORMATION
@@ -563,12 +590,22 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("\n---------------------------------------------------------\n"));
 
 #ifdef _DEBUG
-		if( fPause ) { system("pause"); system("cls"); }
+		PauseConsole(); ClearConsoleScreen();
 #endif
 
 	} // Wmi 소멸 (COM이 아직 살아있는 상태에서 안전하게 Release())
 
 	CoUninitialize();
+
+	// [수정] Release 빌드는 _CONSOLE_LOG가 꺼지고 _FILE_LOG만 켜져 있어(BaseDefine.h)
+	// 각 섹션의 상세 내용이 콘솔에 전혀 출력되지 않습니다. 사용자가 프로그램이
+	// 정상적으로 끝났는지, 결과를 어디서 확인해야 하는지 알 수 있도록 결과 파일이
+	// 저장된 디렉터리 경로만 짧게 안내합니다. _DEBUG 빌드는 이미 각 섹션 내용이
+	// 콘솔에 전부 출력되었으므로 이 안내는 필요 없습니다.
+#ifndef _DEBUG
+	_tprintf(_T("정보 파일이 생성되었습니다: %s\n"), strLogPath.c_str());
+	CloseConsole();
+#endif
 
 	return 0;
 }
