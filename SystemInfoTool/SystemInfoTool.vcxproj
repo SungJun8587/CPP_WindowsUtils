@@ -107,10 +107,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Library\UtilCore\System\CpuInfo.cpp" />
-    <ClCompile Include="..\..\Library\UtilCore\System\HardwareInfo.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\System\DeviceInfo.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\System\OsInfo.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\System\SoftwareInfo.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\System\Wmi.cpp" />
+    <ClCompile Include="..\..\Library\UtilCore\System\WmiHardwareInfo.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\EncodingConvert.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\Log.cpp" />
     <ClCompile Include="..\..\Library\UtilCore\Util\StringUtil.cpp" />
@@ -126,11 +127,13 @@
     <ClInclude Include="..\..\Library\UtilCore\BaseMacro.h" />
     <ClInclude Include="..\..\Library\UtilCore\BaseRedefineDataType.h" />
     <ClInclude Include="..\..\Library\UtilCore\System\CpuInfo.h" />
-    <ClInclude Include="..\..\Library\UtilCore\System\HardwareInfo.h" />
+    <ClInclude Include="..\..\Library\UtilCore\System\DeviceInfo.h" />
+    <ClInclude Include="..\..\Library\UtilCore\System\HwInfoStructs.h" />
     <ClInclude Include="..\..\Library\UtilCore\System\OsInfo.h" />
     <ClInclude Include="..\..\Library\UtilCore\System\SoftwareInfo.h" />
     <ClInclude Include="..\..\Library\UtilCore\System\SystemBaseDefine.h" />
     <ClInclude Include="..\..\Library\UtilCore\System\Wmi.h" />
+    <ClInclude Include="..\..\Library\UtilCore\System\WmiHardwareInfo.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\ConsoleUtil.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\EncodingConvert.h" />
     <ClInclude Include="..\..\Library\UtilCore\Util\Log.h" />

@@ -52,7 +52,9 @@
 #include <System/OsInfo.h>
 #include <System/SoftwareInfo.h>
 #include <System/CpuInfo.h>
-#include <System/HardwareInfo.h>
+#include <System/HwInfoStructs.h>
+#include <System/WmiHardwareInfo.h>
+#include <System/DeviceInfo.h>
 
 #pragma comment(lib, "winmm.lib")			// timeGetTime 함수를 사용하려면 winmm.lib 필요
 #pragma comment(lib, "version.lib")			// GetFileVersionInfoSize 함수를 사용하려면 version.lib 필요

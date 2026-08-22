@@ -42,19 +42,19 @@ int main(int argc, char* argv[])
 
 	TCHAR	tszFormat[NUMERIC_STRING_LEN];
 
-	CCpuInfo			CpuInfo;
-	CBiosInfo			BiosInfo;
-	CMainBoardInfo		MainBoardInfo;
-	CMemoryInfo			MemoryInfo;
-	CHdDiskInfo			HdDiskInfo;
-	CDriveInfo			DriveInfo;
-	CSoundCardInfo		SoundCardInfo;
-	CVideoCardInfo		VideoCardInfo;
-	CNetworkCardInfo	NetworkCardInfo;
-	CCdromInfo			CdromInfo;
-	CKeyBoardInfo		KeyBoardInfo;
-	CMouseInfo			MouseInfo;
-	CMonitorInfo		MonitorInfo;
+	CCpuInfo				CpuInfo;
+	CWmiBiosInfo			BiosInfo;
+	CWmiMainBoardInfo		MainBoardInfo;
+	CWmiMemoryInfo			MemoryInfo;
+	CWmiHdDiskInfo			HdDiskInfo;
+	CWmiDriveInfo			DriveInfo;
+	CSoundCardInfo			SoundCardInfo;
+	CVideoCardInfo			VideoCardInfo;
+	CWmiNetworkCardInfo		NetworkCardInfo;
+	CWmiCdromInfo			CdromInfo;
+	CWmiKeyBoardInfo		KeyBoardInfo;
+	CWmiMouseInfo			MouseInfo;
+	CWmiMonitorInfo			MonitorInfo;
 
 	COsInfo			OsInfo;
 	CIeInfo			IeInfo;
@@ -356,13 +356,21 @@ int main(int argc, char* argv[])
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("*************************\n"));
 
 		SoundCardInfo.GetInformation();
+		const std::vector<HWINFO_SOUNDCARD*>* psSoundCardVector = SoundCardInfo.GetSoundCardArray();
 
-		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("HasVolumeControl = %d"), SoundCardInfo.HasVolCtrl());
-		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("HasSeparateRLVolCtrl = %d"), SoundCardInfo.HasSeparateLRVolCtrl());
-		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("ProductName = %s"), SoundCardInfo.GetProductName());
-		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CompanyName = %s\n"), SoundCardInfo.GetCompanyName());
+		if( psSoundCardVector )
+		{
+			for( size_t i = 0; i < psSoundCardVector->size(); ++i )
+			{
+				HWINFO_SOUNDCARD* pSoundCard = (*psSoundCardVector)[i];
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("SOUND[%zud]"), i + 1);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("HardwareId = %s"), pSoundCard->m_tszHardwareId);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("ProductName = %s"), pSoundCard->m_tszProductName);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("CompanyName = %d\n"), pSoundCard->m_tszCompanyName);
+			}
+		}
 		LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("---------------------------------------------------------\n"));
-
+	
 #ifdef _DEBUG
 		PauseConsole(); ClearConsoleScreen();
 #endif
@@ -381,6 +389,7 @@ int main(int argc, char* argv[])
 			{
 				HWINFO_VIDEOCARD* pVideoCard = (*psVideoCardVector)[i];
 				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("VIDEO[%zud]"), i + 1);
+				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("HardwareId = %s"), pVideoCard->m_tszHardwareId);
 				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("Description = %s"), pVideoCard->m_tszDescription);
 				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("AdapterString = %s"), pVideoCard->m_tszAdapterString);
 				LOG_WRITE(ELOG_TYPE::LOG_TYPE_INFO, false, _T("ChipType = %s"), pVideoCard->m_tszChipType);

@@ -33,9 +33,6 @@
     <ClCompile Include="..\..\Library\UtilCore\System\CpuInfo.cpp">
       <Filter>UtilCore\System</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\Library\UtilCore\System\HardwareInfo.cpp">
-      <Filter>UtilCore\System</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\Library\UtilCore\System\OsInfo.cpp">
       <Filter>UtilCore\System</Filter>
     </ClCompile>
@@ -43,6 +40,12 @@
       <Filter>UtilCore\System</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Library\UtilCore\System\Wmi.cpp">
+      <Filter>UtilCore\System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\System\WmiHardwareInfo.cpp">
+      <Filter>UtilCore\System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Library\UtilCore\System\DeviceInfo.cpp">
       <Filter>UtilCore\System</Filter>
     </ClCompile>
   </ItemGroup>
@@ -61,9 +64,6 @@
       <Filter>UtilCore\Util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Library\UtilCore\System\CpuInfo.h">
-      <Filter>UtilCore\System</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\Library\UtilCore\System\HardwareInfo.h">
       <Filter>UtilCore\System</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Library\UtilCore\System\OsInfo.h">
@@ -89,6 +89,15 @@
     </ClInclude>
     <ClInclude Include="..\..\Library\UtilCore\Util\ConsoleUtil.h">
       <Filter>UtilCore\Util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\System\HwInfoStructs.h">
+      <Filter>UtilCore\System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\System\WmiHardwareInfo.h">
+      <Filter>UtilCore\System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Library\UtilCore\System\DeviceInfo.h">
+      <Filter>UtilCore\System</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
